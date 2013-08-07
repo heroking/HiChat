@@ -1,0 +1,581 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+        <title>
+            HiChat
+        </title>
+        <link rel="stylesheet" type="text/css" href="bootstrap/css/flatstrap.min.css">
+        <link rel="stylesheet" type="text/css" href="cikonss/cikonss.css">
+        <link rel="stylesheet" type="text/css" href="alertify/themes/alertify.core.css">
+        <link rel="stylesheet" type="text/css" href="alertify/themes/alertify.bootstrap.css">
+        <link rel="stylesheet" type="text/css" href="jquery-ui-bootstrap/css/custom-theme/jquery-ui-1.10.0.custom.css">
+
+        <style type="text/css">
+          html, body{
+            font-family: "Microsoft YaHei","STSong",'lucida grande', tahoma, verdana, arial, sans-serif;
+            height : 100%;
+          }
+        /*#sideBar{
+          -webkit-background-clip: border-box;
+          -webkit-background-origin: padding-box;
+          -webkit-background-size: auto;
+          -webkit-box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
+          background-attachment: scroll;
+          background-clip: border-box;
+          background-color: rgb(51, 51, 51);
+          background-image: none;
+          background-origin: padding-box;
+          background-size: auto;
+          box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
+          color: rgb(255, 255, 255);
+          display: block;
+          font-size: 15px;
+          height: 100%;
+          left: auto;
+          overflow-y: auto;
+          position: fixed;
+          right: 0px;
+          top: 0px;
+          width: 260px;
+          z-index: 4999;
+        }*/
+        #rosterTb {
+          text-align:center;
+          width:100%;
+        }
+        #rosterTb td{
+          padding-top:5px;
+          padding-bottom: 5px;
+          height: 80px;
+          font-size: 75%
+        }
+        #rosterTb .u-head{
+          width: 50px;
+          height: 50px;
+        }
+        #rosterTb .u-opt{
+          width: 20px;
+          height: 20px;
+        }
+        #rosterTb .u-mc{
+          float:right;
+          position: relative;
+          left : 5px;
+          top : 10px;
+          height: 20px;
+          width: 20px;
+          background-color: red;
+          border-radius: 10px;
+        }
+
+        .m-cp {
+        }
+
+        .m-cp .u-cta {
+          overflow-y : auto;
+          width: auto;
+        }
+
+        .m-cp .u-cta table{
+          width : 100%;
+          word-break : break-all;
+        }
+
+        .m-cp .u-sd {
+          overflow: visible;
+          display: block;
+          font-size: 15px;
+          position: fixed;
+          padding: 5px 10px 5px 10px;
+          bottom: 0;
+          left : 210px;
+        }
+        .m-cp .u-sd textarea{
+          width : 400px;
+          height : 20px;
+          margin-bottom: 0;
+        }
+
+        .m-cp .u-sd ul{
+          text-align: center;
+          color : #5bb75b;        
+        }
+        .m-cp .u-sd ul li:hover{
+          color : white;        
+          background-color: #5bb75b;     
+        }
+        /*.chatPanel {
+          width: auto;
+          margin-right: 330px;
+          margin-left: 20px;
+          margin-top: 20px;
+          margin-bottom: 20px;
+          height: 600px;
+          padding: 20px 20px 20px 20px;
+        }
+        .chatPanel .chatTextArea{
+          margin-top:20px;
+          margin-bottom: 60px;
+          height: 100%;
+          overflow-y : auto;
+        }
+        .chatPanel .chatTextArea table{
+          width : 100%;
+          word-break:break-all;
+        }
+        .chatPanel .sendDiv{
+          -webkit-background-clip: border-box;
+          -webkit-background-origin: padding-box;
+          -webkit-background-size: auto;
+          -webkit-box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
+          background-attachment: scroll;
+          background-clip: border-box;
+          background-color: rgb(51, 51, 51);
+          background-image: none;
+          background-origin: padding-box;
+          background-size: auto;
+          box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
+          color: rgb(255, 255, 255);
+          display: block;
+          font-size: 15px;
+          position: fixed;
+          padding: 25px 50px 25px 50px;
+          right: 260px;
+          bottom: 0px;
+          z-index: 4999;
+        }
+
+        .chatPanel .sendDiv .sendTextArea{
+          width : 400px;
+          height : 20px;
+          margin-bottom: 0;
+        }
+*/
+        #vCardDialog,.vCardPanel,#subscribeDialog {
+          padding: 20px 20px 20px 20px;
+        }
+        .dialog table{
+          font-size: 120%;
+          width:100%;
+          text-align: center;
+          line-height: 40px;
+        }
+        .dialog table td{
+          height:40px;
+        }
+
+        .dialog ul li:nth-child(even) {
+          background-color : white;
+          display: inline;
+        }
+        .dialog ul li:nth-child(even) {
+          background-color : #CED8EB;
+          display: inline;
+        }
+        .menuBtns {
+          opacity: 0.5;
+        }
+        .menuBtns:hover{
+          opacity: 1;
+        }
+        .menuBtns img{
+          width: 30px;
+          height: 30px;
+        }
+
+        #chatTab {
+          font-weight: bolder;
+          font-size: 120%;
+        }
+
+        .g-bd1{
+          margin: 0;
+          height: 100%;
+        }
+        .g-sd1{
+          position: relative;
+          float: left;
+          width: 200px;
+          margin-right : -200px;
+          height: 100%;
+        }
+        .g-mn1{
+          float: right;
+          width: 100%;
+          height: 100%;
+        }
+        .g-mn1c{
+          margin-left: 210px;
+          height: 100%;
+        }
+        .s-sd{
+          -webkit-background-clip: border-box;
+          -webkit-background-origin: padding-box;
+          -webkit-background-size: auto;
+          -webkit-box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
+          background-attachment: scroll;
+          background-clip: border-box;
+          background-color: rgb(51, 51, 51);
+          background-image: none;
+          background-origin: padding-box;
+          background-size: auto;
+          box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
+          color: rgb(255, 255, 255);
+          font-size: 15px;
+          overflow-y: auto;
+        }
+        .m-ctm {
+          position: absolute;
+          display: none;
+          border-radius: 5px;
+          border : 1px solid #5bb75b;
+          background-color: white;
+          padding : 10px 5px;
+        }
+
+        .m-ctm ul{
+          color: #5bb75b;
+          text-align: center;
+          list-style: none; 
+          margin:0;   
+        }
+
+        .m-ctm ul .u-admin:hover,.m-ctm ul .u-user:hover{
+          color : white;
+          background-color: #5bb75b;
+        }
+        </style>
+    </head>
+    <body>
+        <div class="g-bd1 f-cb">
+            <div class="g-sd1 s-sd" id="sideBar">
+                <div id="loginDiv" style="padding:10px 10px 10px 10px">
+                    <h2>
+                        请登录：
+                    </h2>
+                    <form class="" style="text-align:right">
+                        <fieldset>
+                            <table>
+                                <tbody>
+                                    <tr height="40">
+                                        <td>
+                                            <input name="username" type="text" placeholder="用户名" style="margin-left:10px;width:140px">
+                                        </td>
+                                    </tr>
+                                    <tr height="40">
+                                        <td>
+                                            <input name="password" class="" type="password" placeholder="密码" style="margin-left:10px;width:140px">
+                                        </td>
+                                    </tr>
+                                    <tr height="40">
+                                        <td colspan="2" style="text-align:center">
+                                            <button type="submit" class="btn btn-success" style="margin-right:20px">登陆</button> <button class="btn btn-info" style="" id="registerBtn">注册</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </fieldset>
+                    </form>
+                </div>
+                <div id="mainDiv" style="padding:10px 10px 10px 10px;display:none">
+                    <div style="width:100%;text-align:center" id="myNameAndHeader">
+                        <h3>
+                            nickname
+                        </h3><img id="myHeader" width="90" height="90" src="resources/defaultHeader.jpg">
+                    </div>
+                    <div style="height:600px;overflow-y:auto">
+                        <table id="rosterTb">
+                            <thead>
+                                <tr>
+                                    <th width="52"></th>
+                                    <th></th>
+                                    <th width="52"></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="groupMenu" style="width:100%;position:absolute;bottom:60px;right:0;display:none">
+                        <div style="margin-left:10px;margin-right:10px">
+                            <span id="createRoomBtn" class="menuBtns"><img src='resources/createRoomIcon.png'></span> <span id="joinRoomBtn" class="menuBtns"><img src='resources/joinRoomIcon.png'></span> <span id="deleteRoomBtn" class="menuBtns"><img src='resources/deleteRoomIcon.png'></span>
+                        </div>
+                    </div>
+                    <div style="width:100%;position:absolute;bottom:20px;right:0;">
+                        <div style="margin-left:10px;margin-right:10px">
+                            <span id="subscribeBtn" class="menuBtns"><img src='resources/subscribeIcon.png'></span> <span id="optionBtn" class="menuBtns"><img src='resources/optionIcon.png'></span> <span id="chatHistoryBtn" class="menuBtns"><img src='resources/chatHistoryIcon.png'></span> <span id="groupChatBtn" class="menuBtns"><img src='resources/groupIcon.png'></span> <span id="logoutBtn" class="menuBtns"><img src='resources/logoutIcon.png'></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="g-mn1">
+                <div class="g-mn1c">
+                    <div id="chatTabs">
+                      <ul id="chatTabUl"></ul>
+                      <div id="chatTabContent"></div>
+                    </div>
+                    <!-- 显示个人名片的对话框 -->
+                    <div id="vCardDialog" class="dialog">
+                        <table class="vCardTb">
+                            <tbody>
+                                <tr itemtype='nickname'>
+                                    <td>
+                                        昵称：
+                                    </td>
+                                    <td></td>
+                                    <td>
+                                        <input type="text" name='nickname' value='' placeholder='昵称'>
+                                    </td>
+                                </tr>
+                                <tr itemtype='sex'>
+                                    <td>
+                                        性别：
+                                    </td>
+                                    <td></td>
+                                    <td>
+                                        <select>
+                                            <option value='male'>
+                                                男
+                                            </option>
+                                            <option value='female'>
+                                                女
+                                            </option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr itemtype='bday'>
+                                    <td>
+                                        生日：
+                                    </td>
+                                    <td></td>
+                                    <td>
+                                        <input type="date" name='bday' value='' placeholder='生日'>
+                                    </td>
+                                </tr>
+                                <tr itemtype='email'>
+                                    <td>
+                                        邮箱：
+                                    </td>
+                                    <td></td>
+                                    <td>
+                                        <input type="text" name='email' value='' placeholder='邮箱'>
+                                    </td>
+                                </tr>
+                                <tr itemtype='tele'>
+                                    <td>
+                                        手机：
+                                    </td>
+                                    <td></td>
+                                    <td>
+                                        <input type="text" name='tele' value='' placeholder='手机号码'>
+                                    </td>
+                                </tr>
+                                <tr itemtype='desc'>
+                                    <td>
+                                        自我描述：
+                                    </td>
+                                    <td></td>
+                                    <td>
+                                        <textarea style="height:200px" name='desc'></textarea>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div><!-- 订阅对话框 -->
+                    <div id="subscribeDialog" class="dialog">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>
+                                        根据用户名查找
+                                    </th>
+                                    <th>
+                                        <input type='text' placeholder='用户的jid'>
+                                    </th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div><!-- /订阅对话框 -->
+                    <!-- 个人名片对话框 -->
+                    <div id="vCardPanels" class="dialog"></div><!-- /个人名片对话框 -->
+                    <!-- 创建房间对话框 -->
+                    <div id="createRoomDialog" class="dialog">
+                      <table>
+                          <thead>
+                            <tr>
+                              <td style="width:300px;text-align:right"></td>
+                              <td></td>
+                            </tr>
+                          </thead>
+                          <tbody>
+                              <tr>
+                                  <td>房间ID</td>
+                                  <td><input name="roomId" type="text" placeholder="房间ID号"></td>
+                              </tr>
+                              <tr>
+                                  <td>房间昵称</td>
+                                  <td><input name="roomname" type="text" placeholder="房间昵称"></td>
+                              </tr>
+                              <tr>
+                                  <td>房间描述</td>
+                                  <td><textarea name="roomdesc"></textarea></td>
+                              </tr>
+                              <tr>
+                                  <td>启用房间日志</td>
+                                  <td><input type="checkbox" name="enablelogging"></td>
+                              </tr>
+                              <tr>
+                                  <td>是否允许更改主题</td>
+                                  <td><input type="checkbox" name="changesubject"></td>
+                              </tr>
+                              <tr>
+                                  <td>是否允许邀请</td>
+                                  <td><input type="checkbox" name="allowinvites"></td>
+                              </tr>
+                              <tr>
+                                  <td>人数上限</td>
+                                  <td>
+                                      <select name="maxusers">
+                                          <option value="20">
+                                              20
+                                          </option>
+                                          <option value="30">
+                                              30
+                                          </option>
+                                          <option value="40">
+                                              40
+                                          </option>
+                                          <option value="50">
+                                              50
+                                          </option>
+                                          <option value="60">
+                                              60
+                                          </option>
+                                      </select>
+                                  </td>
+                              </tr>
+                              <tr>
+                                  <td>是否为公有房间</td>
+                                  <td><input type="checkbox" name="publicroom"></td>
+                              </tr>
+                              <tr>
+                                  <td>是否为永久房间</td>
+                                  <td><input type="checkbox" name="persistentroom"></td>
+                              </tr>
+                              <tr>
+                                  <td>是否为主持人房间</td>
+                                  <td><input type="checkbox" name="moderatedroom"></td>
+                              </tr>
+                              <tr>
+                                  <td>是否仅允许会员进入</td>
+                                  <td><input type="checkbox" name="membersonly"></td>
+                              </tr>
+                              <tr>
+                                  <td>是否需要密码</td>
+                                  <td><input type="checkbox" name="passwordprotectedroom"></td>
+                              </tr>
+                              <tr style="display:none">
+                                  <td>房间密码</td>
+                                  <td><input type="password" name="roomsecret" placeholder="房间密码"></td>
+                              </tr>
+                              <tr>
+                                  <td>是否允许查看他人信息</td>
+                                  <td><input type="checkbox" name="whois"></td>
+                              </tr>
+                              <tr>
+                                <td>管理员列表</td>
+                                <td><input type='text' style='width:100px;margin:0' name='userJid' placeholder='管理员的JID'/><button class='btn btn-primary' id='addAdminBtn'>添加</button></td>
+                              </tr>
+                          </tbody>
+                      </table>
+                      <ul name="roomadmins" style="list-style:none;text-align:center">
+                      </ul>
+                    </div><!-- /创建房间对话框 -->
+                    <!-- 加入房间对话框 -->
+                    <div id="findRoomDialog" class="dialog">
+                      <table>
+                        <thead>
+                          <tr>
+                            <td>房间名称</td>
+                            <td>操作</td>
+                          </tr>
+                        </thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                    <!-- /加入房间对话框 -->
+                    <div id="joinRoomDialog" class="dialog">
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        昵称：
+                                    </td>
+                                    <td>
+                                        <input type="text" placeholder="房间内使用的昵称" name="nickname">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        密码：
+                                    </td>
+                                    <td>
+                                        <input type="password" placeholder="该房间需要密码" name="password">
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- 群聊用户右键菜单栏 -->
+                    <div id="groupUserContextMenu" class="m-ctm">
+                      <ul>
+                        <li style="font-size:120%">权限管理</li>
+                        <li class='u-admin' affiliation="owner" name="owner">设为房间拥有者</li>
+                        <li class='u-admin' affiliation="owner" name="admin">设为管理员</li>
+                        <li class='u-admin' affiliation="admin" name="member">设为会员</li>
+                        <li class='u-admin' affiliation="admin" name="none">设为游客</li>
+                        <li class='u-admin' affiliation="admin" name="kickout">踢出</li>
+                        <li class='u-admin' affiliation="admin" name="outcast">加入房间黑名单</li>
+                      </ul>
+                    </div>
+                    <!-- /群聊用户右键菜单栏 -->
+                    <!-- 群聊个人右键菜单栏 -->
+                    <div id="groupConfigContextMenu" class="m-ctm">
+                      <ul>
+                        <li affiliation="admin" style="font-size:120%">房间管理</li>
+                        <li class='u-admin' afiiliation="admin" name="getOutcastList">获取房间黑名单</li>
+                        <li class='u-admin' affiliation="owner" name="changeConfig">修改房间配置</li>
+                        <li class='u-admin' affiliation='owner' name="deleteRoom">删除房间</li>
+                        <li style="font-size:120%">个人配置</li>
+                        <li class='u-user' name="changeNickname">修改昵称</li>
+                        <li class='u-user' name="changeStatus">更改状态</li>
+                      </ul>
+                    </div>
+                    <!-- /群聊个人右键菜单栏 -->
+                    <!-- 黑名单对话框 -->
+                    <div id="outcastDialog" class="dialog">
+                      <table>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                    <!-- /黑名单对话框 -->
+                </div>
+            </div>
+        </div>
+        <script type="text/javascript" src="jquery-1.9.1.js">
+        </script><script type="text/javascript" src="bootstrap/js/bootstrap.min.js">
+        </script><script type="text/javascript" src="alertify/alertify.min.js">
+        </script><script type="text/javascript" src="jquery-ui-bootstrap/js/jquery-ui-1.9.2.custom.min.js">
+        </script><script type="text/javascript" src="jsjac.uncompressed.js">
+        </script><script type="text/javascript" src="HiChatUtils.js">
+        </script><script type="text/javascript" src="HiChatConfig.js">
+        </script><script type="text/javascript" src="HiChatModel.js">
+        </script><script type="text/javascript" src="HiChatService.js">
+        </script><script type="text/javascript" src="HiChatConnector.js">
+        </script><script type="text/javascript" src="HiChatViewer.js">
+        </script><script type="text/javascript" src="HiChatMain.js">
+        </script><script type="text/javascript">
+        </script>
+    </body>
+</html>
