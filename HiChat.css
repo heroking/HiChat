@@ -1,0 +1,365 @@
+html, body{
+  font-family: "Microsoft YaHei","STSong",'lucida grande', tahoma, verdana, arial, sans-serif;
+  height : 100%;
+}
+/*---滚动条默认显示样式--*/  
+::-webkit-scrollbar-thumb{  
+   background-color:#5bb75b;  
+   height:50px;  
+   outline-offset:-2px;  
+   border-radius: 2px;
+   /*border-radius:10px;  */
+   /*border: 2px solid #dff0d8;  */
+}  
+/*---鼠标点击滚动条显示样式--*/  
+::-webkit-scrollbar-thumb:hover{  
+   background-color:#5bb75b;  
+   height:50px;  
+   border-radius: 2px;
+   /*border-radius:10px;  */
+}  
+/*---滚动条大小--*/  
+::-webkit-scrollbar{  
+   width:15px;  
+   height:15px; 
+   /*border-radius:10px;  */
+}  
+/*---滚动框背景样式--*/  
+::-webkit-scrollbar-track-piece{  
+   background-color:transparent;  
+   /*border-radius:10px;  */
+}
+
+.div{ 
+  scrollbar-face-color: #ebebeb;
+  scrollbar-shadow-color: #ffffff; 
+  scrollbar-highlight-color:#ffffff; 
+  scrollbar-3dlight-color: #d8d8d8;  
+  scrollbar-darkshadow-color: #d8d8d8; 
+  scrollbar-track-color:#ffffff; 
+  scrollbar-arrow-color: #686868;
+}
+
+#myHeader {
+  width: 90px;
+  height: 90px;
+  cursor: pointer;
+  border-radius: 20%;
+  position: relative;
+  box-shadow: 3px 3px 8px black;
+  -webkit-box-shadow: 3px 3px 8px black;
+  -moz-box-shadow: 3px 3px 8px black;
+}
+
+#myStatus {
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  position: absolute;
+  left: 115px;
+  top: 60px;
+}
+
+/*#rosterTb {
+  text-align:center;
+  width:100%;
+}
+#rosterTb td{
+  padding-top:5px;
+  padding-bottom: 5px;
+  height: 80px;
+  font-size: 75%
+}
+#rosterTb .u-head{
+  width: 50px;
+  height: 50px;
+  cursor: pointer;
+  border-radius: 10px;
+}
+#rosterTb .u-opt{
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+#rosterTb .u-mc{
+  float:right;
+  position: relative;
+  left : 5px;
+  top : 10px;
+  height: 20px;
+  width: 20px;
+  background-color: red;
+  border-radius: 10px;
+}*/
+
+#rosterTb {
+  width:100%;
+  max-height: 50%;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+
+#rosterTb .g-line{
+  height: 70px;
+  width: 170px;
+  padding: 5px;
+  display: block;
+  position: relative;
+}
+
+#rosterTb .u-cg{
+  opacity: 0.9;
+  height: 15px;
+  text-align: center;
+  width: 168px;
+  line-height: 15px;
+  border-radius: 5px;
+}
+
+#rosterTb .g-line .u-head{
+  display: inline-block;
+  cursor: pointer;
+}
+
+#rosterTb .g-line .u-head .u-mc{
+  position: absolute;
+  height: 20px;
+  background-color: red;
+  border-radius: 10px;
+  padding: 2px;
+}
+
+#rosterTb .g-line .u-head img{
+  width: 60px;
+  height: 60px;
+  border-radius: 20%;
+  box-shadow: 3px 3px 8px black;
+  -webkit-box-shadow: 3px 3px 8px black;
+  -moz-box-shadow: 3px 3px 8px black;
+}
+
+#rosterTb .g-line .u-nick{
+  line-height: 60px;
+  width: 110px;
+  text-align: center;
+  display: inline-block;
+  text-shadow: 3px 3px 8px black;
+}
+
+#rosterTb .g-line .u-status{
+  width: 32px;
+  height: 32px;
+  position: absolute;
+  left: 50px;
+  top: 45px;
+}
+
+.m-cp {
+  padding: 0;
+  background-color: #fcf8e3;
+  border: 1px solid #fbeed5;
+}
+
+.m-cp .u-cta {
+  overflow-y : auto;
+  width: auto;
+  background: transparent;
+}
+
+.m-cp .u-cta table{
+  width : 100%;
+  word-break : break-all;
+  background: transparent;
+}
+
+.m-cp .u-cta .u-smsg{
+  background-color: #dff0d8;
+  border-color: #d6e9c6;
+  color: #468847;
+  padding: 8px 14px;
+}
+
+.m-cp .u-cta .u-rmsg{
+  background-color: #d9edf7;
+  border-color: #bce8f1;
+  color: #3a87ad;
+  padding: 8px 14px;
+}
+
+
+.m-cp .u-sd {
+  overflow: visible;
+  display: block;
+  font-size: 15px;
+  position: fixed;
+  padding: 15px 20px 20px 20px;
+  bottom: 0;
+  width : auto;
+  left : 0;
+  right: 0;
+  margin-left: 200px;
+}
+.m-cp .u-sd textarea{
+  width : 400px;
+  height : 20px;
+  margin-bottom: 0;
+}
+
+.m-cp .u-sd ul{
+  text-align: center;
+  color : #5bb75b;       
+  cursor: pointer; 
+}
+.m-cp .u-sd ul li:hover{
+  color : white;        
+  background-color: #5bb75b;   
+  cursor: pointer;   
+}
+#vCardDialog,.vCardPanel,#subscribeDialog {
+  padding: 20px 20px 20px 20px;
+}
+.dialog table{
+  font-size: 120%;
+  width:100%;
+  text-align: center;
+  line-height: 40px;
+}
+.dialog table td{
+  height:40px;
+}
+
+.dialog ul li:nth-child(even) {
+  background-color : white;
+  display: inline;
+}
+.dialog ul li:nth-child(even) {
+  background-color : #CED8EB;
+  display: inline;
+}
+.menuBtns {
+  opacity: 0.5;
+}
+.menuBtns:hover{
+  opacity: 1;
+  cursor: pointer;
+}
+.menuBtns img{
+  width: 30px;
+  height: 30px;
+}
+
+#chatTabs {
+  font-weight: bolder;
+  font-size: 120%;
+  background: transparent;
+}
+
+#chatTabUl li{
+  background: rgba(255,255,255,0.9);
+} 
+
+.g-bd1{
+  margin: 0;
+  height: 100%;
+}
+.g-sd1{
+  position: relative;
+  float: left;
+  width: 200px;
+  margin-right : -200px;
+  height: 100%;
+}
+.g-mn1{
+  float: right;
+  width: 100%;
+  height: 100%;
+}
+.g-mn1c{
+  margin-left: 210px;
+  height: 100%;
+}
+.s-sd{
+  -webkit-background-clip: border-box;
+  -webkit-background-origin: padding-box;
+  -webkit-background-size: auto;
+  -webkit-box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
+  background-attachment: scroll;
+  background-clip: border-box;
+  background-color: rgb(51, 51, 51);
+  background-image: none;
+  background-origin: padding-box;
+  background-size: auto;
+  box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
+  color: rgb(255, 255, 255);
+  font-size: 15px;
+  overflow-y: auto;
+}
+.m-ctm {
+  position: absolute;
+  display: none;
+  border : 1px solid black;
+  background-color: #F5F5F5;
+  box-shadow: 3px 3px 8px #818181;
+  -webkit-box-shadow: 3px 3px 8px #818181;
+  -moz-box-shadow: 3px 3px 8px #818181;
+}
+
+.m-ctm ul{
+  text-align: center;
+  list-style: none; 
+  margin:0;   
+  padding: 0;
+  list-style-type: none;
+  cursor: pointer;
+}
+
+.m-ctm ul li{
+  display: block;
+  width: 160px;
+  color : black;
+  text-decoration: none;
+  padding: 4px 5px;
+}
+
+.m-ctm ul li .u-admin{
+  text-align: left
+}
+
+.m-ctm ul li:hover{
+  cursor: pointer;
+  color : black;
+  background-color: #E0E0E0;
+}
+
+#chatTabUl .u-del {
+  cursor: pointer;
+  margin-bottom: 2px;
+  margin-left: 10px;
+  margin-right: -10px;
+}
+
+.s-bg1 {
+  /*background-image: url(resources/background1.jpg);*/
+}
+
+#rosterGroupDialog ul{
+  list-style: none;
+  text-align: center;
+}
+
+#rosterGroupDialog ul li input{
+  margin-bottom: 6px;
+  margin-left: 100px;
+}
+
+#changeGroupBtn {
+  margin-top: 20px;
+  display: block;
+  position: relative;
+  opacity: 0.9;
+  height: 15px;
+  text-align: center;
+  width: 158px;
+  line-height: 15px;
+  border-radius: 3px;
+}

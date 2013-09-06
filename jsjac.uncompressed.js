@@ -3614,6 +3614,7 @@ JSJaCConnection.prototype._parseStreamFeatures = function(doc) {
         this.mechs[lMec2.item(j).firstChild.nodeValue] = true;
       break;
     }
+  this.has_sasl = false;
   if (this.has_sasl)
     this.oDbg.log("SASL detected",2);
   else {

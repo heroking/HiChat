@@ -1,41 +1,32 @@
-<?xml version="1.0" encoding="ISO-8859-1"?>
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app version="2.5" xmlns="http://java.sun.com/xml/ns/javaee"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/javaee 
+	http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd">
+	<filter>
+		<filter-name>struts</filter-name>
+		<filter-class>org.apache.struts2.dispatcher.ng.filter.StrutsPrepareAndExecuteFilter</filter-class>
+	</filter>
+	<filter>
+		<filter-name>struts-cleanup</filter-name>
+		<filter-class>org.apache.struts2.dispatcher.ActionContextCleanUp</filter-class>
+	</filter>
 
-<!DOCTYPE web-app 
-    PUBLIC "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN" 
-    "http://java.sun.com/dtd/web-app_2_3.dtd">
+	<filter-mapping>
+		<filter-name>struts</filter-name>
+		<url-pattern>/*</url-pattern>
+	</filter-mapping>
+	<welcome-file-list>
+		<welcome-file>wlyChat.html</welcome-file>
+	</welcome-file-list>
 
-<web-app>
+	<servlet>
+		<servlet-name>Jabber</servlet-name>
+		<servlet-class>org.jabber.JabberHTTPBind.JHBServlet</servlet-class>
+	</servlet>
 
-    <!-- General description of your web application -->
-
-    <display-name>An HTTP Binding Gateway to Jabber</display-name>
-    <description>
-      An implementation of JEP-0124 (HTTP-Binding). See
-      http://www.jabber.org/jeps/jep-0124.html for details.
-    </description>
-
-    <context-param>
-      <param-name>author</param-name>
-      <param-value>steve@zeank.in-berlin.de</param-value>
-      <description>
-        The EMAIL address of the author to whom questions
-        and comments about this application should be addressed.
-      </description>
-    </context-param>
-
-     <servlet>
-        <servlet-name>Jabber HTTP Binding Servlet</servlet-name>
-        <servlet-class>org.jabber.JabberHTTPBind.JHBServlet</servlet-class>
-    </servlet>
-
-    <servlet-mapping>
-        <servlet-name>Jabber HTTP Binding Servlet</servlet-name>
-        <url-pattern>/JHB/</url-pattern>
-    </servlet-mapping>
-
-    <session-config>
-      <session-timeout>30</session-timeout>    <!-- 30 minutes -->
-    </session-config>
-
-
+	<servlet-mapping>
+		<servlet-name>Jabber</servlet-name>
+		<url-pattern>/JHB</url-pattern>
+	</servlet-mapping>
 </web-app>

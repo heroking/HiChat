@@ -4,19 +4,24 @@ HICHAT.connector = (function($, window) {
 		config = HICHAT.config,
 		User = HICHAT.model.SimpleUser,
 		GroupUser = HICHAT.model.GroupChatUser,
+		Friend = HICHAT.model.Friend,
 		VCard = HICHAT.model.VCard,
 		Presence = HICHAT.model.Presence,
 		Room = HICHAT.model.Room,
 		RoomUser = HICHAT.model.RoomUser,
 		OutcastUser = HICHAT.model.OutcastUser,
+		HeadPortrait = HICHAT.model.HeadPortrait,
+		Message = HICHAT.model.Message,
+		GroupMessage = HICHAT.model.GroupMessage,
 		con,
-		handles = (function() {
+		handleModule = (function() {
 			var waste,
 				__handleGroupChatPresence = function(aPresence) {
 					var roomUser = new RoomUser(aPresence.getFrom()),
 						$_presence = $(aPresence.getDoc()),
 						type = aPresence.getType(),
-						status = $("status", $_presence);
+						status = $("status", $_presence),
+						destroy = $("destroy", $_presence);
 					if (type === "unavailable") {
 						if (status.length !== 0) {
 							if (status.attr("code") === "307") {
@@ -28,8 +33,10 @@ HICHAT.connector = (function($, window) {
 								return;
 							}
 							if (status.attr("code") === "303") {
-								eventProcessor.triggerEvent("service_groupChat_changedNickname", [roomUser, $("item", $_presence).attr("nick")]);
+								eventProcessor.triggerEvent("service_groupChat_changedNickInRoom", [roomUser, $("item", $_presence).attr("nick")]);
 							}
+						} else if(destroy.length !== 0){
+							eventProcessor.triggerEvent("service_groupChat_deletedRoom", [roomUser.getRoom().toString(), $("reason", $_presence).text()]);
 						}
 						eventProcessor.triggerEvent("service_groupChat_userLeaveRoom", [roomUser]);
 					} else {
@@ -77,14 +84,38 @@ HICHAT.connector = (function($, window) {
 					console.log("handleIQ:" + aIQ.xml());
 				},
 				handleMessage: function(aJSJaCPacket) {
+					var message,
+						delay;
 					try {
 						if (aJSJaCPacket.getType() === "groupchat") {
-							eventProcessor.triggerEvent("service_groupChat_recieve", [new RoomUser(aJSJaCPacket.getFrom()), aJSJaCPacket.getBody().htmlEnc()]);
+							message = new GroupMessage({
+								groupUser: new RoomUser(aJSJaCPacket.getFrom()),
+								message: aJSJaCPacket.getBody().htmlEnc()
+							});
+							delay = $("delay", aJSJaCPacket.xml());
+							if (delay.length === 0) {
+								message.setTime(new Date().getTime());
+							} else {
+								message.setTime(new Date(delay.attr("stamp")).getTime());
+							}
+							eventProcessor.triggerEvent("service_groupChat_recieveMsg", [message]);
 						} else {
-							eventProcessor.triggerEvent("service_privacyChat_recieve", [new User(aJSJaCPacket.getFrom()), aJSJaCPacket.getBody().htmlEnc()]);
+							message = new Message({
+								user: new User(aJSJaCPacket.getFrom()),
+								message: aJSJaCPacket.getBody().htmlEnc()
+							});
+							console.log(message);
+							delay = $("delay", aJSJaCPacket.xml());
+							if (delay.length === 0) {
+								message.setTime(new Date().getTime());
+							} else {
+								message.setTime(new Date(delay.attr("stamp")).getTime());
+							}
+							eventProcessor.triggerEvent("service_privacyChat_recieveMsg", [message]);
 						}
 					} catch (e) {
-						console.log(e);
+						console.dir(e);
+						console.log(e.getStack());
 					}
 
 				},
@@ -121,6 +152,7 @@ HICHAT.connector = (function($, window) {
 					}
 				},
 				handleError: function(e) {
+					console.log(e.xml());
 					var errorCode = $(e).attr("code");
 					if (Number(errorCode) === 401) {
 						eventProcessor.triggerEvent("service_selfControl_logined", [false]);
@@ -130,7 +162,7 @@ HICHAT.connector = (function($, window) {
 				handleStatusChanged: function(status) {
 					console.log("Status changed : ", status);
 				},
-				handleConnected: function() {
+				handleConnected: function(e) {
 					eventProcessor.triggerEvent("service_selfControl_logined", [true]);
 				},
 				handleDisconnected: function() {
@@ -157,28 +189,49 @@ HICHAT.connector = (function($, window) {
 				}
 			};
 		}()),
-		messageModule = (function() {
-			return {
-				privacySendMsg: function(msgBody, user, CBPrivacySendMsg) {
-					var msg = new JSJaCMessage();
-					msg.setTo(user.toString());
-					msg.setBody(msgBody);
-					con.send(msg);
-					/**/
-				},
-				groupBroadcastMsg: function(room, msgBody, CBGroupBroadcastMsg) {
-					var aMessage = new JSJaCMessage(),
-						bodyNode = aMessage.buildNode("body");
-					aMessage.setTo(room.toString()).setType("groupchat");
-					bodyNode.appendChild(document.createTextNode(msgBody));
-					aMessage.appendNode(bodyNode);
-					con.send(aMessage);
+		basicModule = (function() {
+			var __buildConnector = function(username, password, isRegister) {
+				var connArgs = {
+					httpbase: config.httpbase,
+					timerval: config.timerval
+				};
+
+				if (config.type === 'binding') {
+					con = new JSJaCHttpBindingConnection(connArgs);
+				} else {
+					con = new JSJaCHttpPollingConnection(connArgs);
 				}
+
+				__initConnection();
+
+				connArgs = {
+					domain: config.domain,
+					username: username,
+					resource: config.resource,
+					pass: password,
+					register: isRegister
+				};
+				con.connect(connArgs);
 			};
+			eventProcessor.bindEvent({
+				connector_basic_login: function(event, username, password) {
+					__buildConnector(username, password, false);
+				},
+				connector_basic_logout: function(event) {
+					var p = new JSJaCPresence();
+					p.setType("unavailable");
+					con.send(p);
+					con.disconnect();
+				},
+				connector_basic_register: function(event, username, password) {
+					__buildConnector(username, password, true);
+				}
+
+			});
 		}()),
-		vCardModule = (function() {
-			return {
-				getOtherVCard: function(user, CBGetOtherVCard) {
+		VCardModule = (function() {
+			eventProcessor.bindEvent({
+				connector_vCard_getOtherVCard: function(event, user) {
 					var aIQ = new JSJaCIQ(),
 						aVCardNode = aIQ.buildNode("vCard"),
 						destJid = user.toString();
@@ -190,6 +243,10 @@ HICHAT.connector = (function($, window) {
 						error_handler: function() {},
 						result_handler: function(aJSJaCPacket) {
 							var vCardXml = $("vCard", $(aJSJaCPacket.xml())),
+								headPortrait = new HeadPortrait({
+									type: $("PHOTO TYPE", vCardXml).text(),
+									binval: $("PHOTO BINVAL", vCardXml).text()
+								}),
 								vCard = new VCard({
 									jid: user.getJid(),
 									domain: user.getDomain(),
@@ -198,7 +255,8 @@ HICHAT.connector = (function($, window) {
 									bday: $("BDAY", vCardXml).text(),
 									email: $("EMAIL", vCardXml).text(),
 									tele: $("TELE", vCardXml).text(),
-									desc: $("DESC", vCardXml).text()
+									desc: $("DESC", vCardXml).text(),
+									headPortrait: headPortrait
 								}),
 								aPresence = new JSJaCPresence();
 							eventProcessor.triggerEvent("service_roster_getedOtherVCard", [vCard]);
@@ -208,7 +266,43 @@ HICHAT.connector = (function($, window) {
 						default_handler: function() {}
 					});
 				},
-				getMyVCard: function(CBGetMyVCard) {
+				connector_vCard_getMyVCard: function(event, CBGetMyVCard) {
+					var aIQ = new JSJaCIQ(),
+						aVCardNode = aIQ.buildNode("vCard");
+					aIQ.setType("get");
+					aVCardNode.setAttribute('xmlns', NS_VCARD);
+					aIQ.appendNode(aVCardNode);
+					con.sendIQ(aIQ, {
+						error_handler: function(e) {
+							console.log(e.xml());
+							//CBGetMyVCard.call(eventProcessor);
+						},
+						result_handler: function(aJSJaCPacket) {
+							var vCardXml = $("vCard", $(aJSJaCPacket.xml())),
+								headPortrait = new HeadPortrait({
+									type: $("PHOTO TYPE", vCardXml).text(),
+									binval: $("PHOTO BINVAL", vCardXml).text()
+								}),
+								vCard = new VCard({
+									jid: aJSJaCPacket.getToJID().getNode(),
+									domain: aJSJaCPacket.getToJID().getDomain(),
+									nickname: $("NICKNAME", vCardXml).text(),
+									sex: $("SEX", vCardXml).text(),
+									bday: $("BDAY", vCardXml).text(),
+									email: $("EMAIL", vCardXml).text(),
+									tele: $("TELE", vCardXml).text(),
+									desc: $("DESC", vCardXml).text(),
+									headPortrait: headPortrait
+								});
+							eventProcessor.triggerEvent("service_selfControl_getedMyVCard", [vCard]);
+						},
+						default_handler: function(e) {
+							console.log(e.xml());
+							//CBGetMyVCard.call(eventProcessor);
+						}
+					});
+				},
+				connector_vCard_updateMyVCard: function(event, vCard, CBDrawVCard) {
 					var aIQ = new JSJaCIQ(),
 						aVCardNode = aIQ.buildNode("vCard");
 					aIQ.setType("get");
@@ -220,7 +314,11 @@ HICHAT.connector = (function($, window) {
 						},
 						result_handler: function(aJSJaCPacket) {
 							var vCardXml = $("vCard", $(aJSJaCPacket.xml())),
-								vCard = new VCard({
+								headPortrait = new HeadPortrait({
+									type: $("PHOTO TYPE", vCardXml).text(),
+									binval: $("PHOTO BINVAL", vCardXml).text()
+								}),
+								oldCard = new VCard({
 									jid: aJSJaCPacket.getToJID().getNode(),
 									domain: aJSJaCPacket.getToJID().getDomain(),
 									nickname: $("NICKNAME", vCardXml).text(),
@@ -228,55 +326,78 @@ HICHAT.connector = (function($, window) {
 									bday: $("BDAY", vCardXml).text(),
 									email: $("EMAIL", vCardXml).text(),
 									tele: $("TELE", vCardXml).text(),
-									desc: $("DESC", vCardXml).text()
-								});
-							eventProcessor.triggerEvent("service_selfControl_drawMyVCard", [vCard]);
+									desc: $("DESC", vCardXml).text(),
+									headPortrait: headPortrait
+								}),
+								aIQ = new JSJaCIQ(),
+								avcardNode = aIQ.buildNode("vCard"),
+								arg,
+								that = this,
+								photoNode;
+							if (typeof vCard.getNickname() !== "undefined") {
+								oldCard.setNickname(vCard.getNickname());
+							}
+							if (typeof vCard.getSex() !== "undefined") {
+								oldCard.setSex(vCard.getSex());
+							}
+							if (typeof vCard.getBirthday() !== "undefined") {
+								oldCard.setBirthday(vCard.getBirthday());
+							}
+							if (typeof vCard.getEmail() !== "undefined") {
+								oldCard.setEmail(vCard.getEmail());
+							}
+							if (typeof vCard.getTelephone() !== "undefined") {
+								oldCard.setTelephone(vCard.getTelephone());
+							}
+							if (typeof vCard.getDescription() !== "undefined") {
+								oldCard.setDescription(vCard.getDescription());
+							}
+							if (vCard.getHeadPortrait().isExist()) {
+								oldCard.setHeadPortrait(vCard.getHeadPortrait());
+							}
+							aIQ.setType("set");
+							avcardNode.setAttribute("xmlns", NS_VCARD);
+							avcardNode.appendChild(aIQ.buildNode("NICKNAME", oldCard.getNickname()));
+							avcardNode.appendChild(aIQ.buildNode("SEX", oldCard.getSex()));
+							avcardNode.appendChild(aIQ.buildNode("BDAY", oldCard.getBirthday()));
+							avcardNode.appendChild(aIQ.buildNode("EMAIL", oldCard.getEmail()));
+							avcardNode.appendChild(aIQ.buildNode("TELE", oldCard.getTelephone()));
+							avcardNode.appendChild(aIQ.buildNode("DESC", oldCard.getDescription()));
+							if (oldCard.getHeadPortrait().isExist()) {
+								photoNode = aIQ.buildNode("PHOTO");
+								photoNode.appendChild(aIQ.buildNode("TYPE", oldCard.getHeadPortrait().getType()));
+								photoNode.appendChild(aIQ.buildNode("BINVAL", oldCard.getHeadPortrait().getBinval()));
+								avcardNode.appendChild(photoNode);
+							}
+							aIQ.appendNode(avcardNode);
+							con.sendIQ(aIQ, {
+								error_handler: function() {
+									eventProcessor.triggerEvent("service_selfControl_updatedMyVCard", [false]);
+								},
+								result_handler: function(aJSJaCPacket) {
+									eventProcessor.triggerEvent("service_selfControl_updatedMyVCard", [true]);
+								},
+								default_handler: function() {}
+							});
 						},
 						default_handler: function() {
 							//CBGetMyVCard.call(eventProcessor);
 						}
 					});
-				},
-				updateMyVCard: function(vCard, CBDrawVCard) {
-					var aIQ = new JSJaCIQ(),
-						avcardNode = aIQ.buildNode("vCard"),
-						arg,
-						that = this;
-					aIQ.setType("set");
-					avcardNode.setAttribute("xmlns", NS_VCARD);
-					/*
-						this.nickname = oArgs.nickname;
-						this.sex = oArgs.sex;
-						this.birthday = oArgs.bday;
-						this.email = oArgs.email;
-						this.telephone = oArgs.tele;
-						this.description = oArgs.desc;
-						*/
-					avcardNode.appendChild(aIQ.buildNode("NICKNAME", vCard.getNickname()));
-					avcardNode.appendChild(aIQ.buildNode("SEX", vCard.getSex()));
-					avcardNode.appendChild(aIQ.buildNode("BDAY", vCard.getBirthday()));
-					avcardNode.appendChild(aIQ.buildNode("EMAIL", vCard.getEmail()));
-					avcardNode.appendChild(aIQ.buildNode("TELE", vCard.getTelephone()));
-					avcardNode.appendChild(aIQ.buildNode("DESC", vCard.getDescription()));
-					aIQ.appendNode(avcardNode);
-					con.sendIQ(aIQ, {
-						error_handler: function() {
-							eventProcessor.triggerEvent("service_selfControl_drawMyVCard");
-						},
-						result_handler: function(aJSJaCPacket) {
-							that.getMyVCard();
-						},
-						default_handler: function() {
-							eventProcessor.triggerEvent("service_selfControl_drawMyVCard");
-						}
-					});
 				}
-			};
+			});
 		}()),
-
-		subscribeModule = (function() {
-			return {
-				sendSubscribe: function(user, tag, CBSendSubscribe) {
+		privacyChatModule = (function() {
+			eventProcessor.bindEvent({
+				connector_privacyChat_sendMsg: function(event, message, CBPrivacySendMsg) {
+					var user = message.getUser(),
+						msgBody = message.getMessage(),
+						msg = new JSJaCMessage();
+					msg.setTo(user.toString());
+					msg.setBody(msgBody);
+					con.send(msg);
+				},
+				connector_privacyChat_sendSubscribe: function(event, user, tag, CBSendSubscribe) {
 					var aIQ = new JSJaCIQ(),
 						queryNode = aIQ.setQuery(NS_ROSTER),
 						itemNode = aIQ.buildNode("item");
@@ -304,7 +425,7 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				sendSubscribed: function(user, tag, CBSendSubscribed) {
+				connector_privacyChat_sendSubscribed: function(event, user, tag, CBSendSubscribed) {
 					var aIQ = new JSJaCIQ(),
 						queryNode = aIQ.setQuery(NS_ROSTER),
 						itemNode = aIQ.buildNode("item");
@@ -331,21 +452,21 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				sendUnsubscribed: function(user, CBSendUnsubscribed) {
+				connector_privacyChat_sendUnsubscribed: function(event, user, CBSendUnsubscribed) {
 					var aPresence = new JSJaCPresence();
 					aPresence.setTo(user.toString());
 					aPresence.setType("unsubscribed");
 					con.send(aPresence);
 					if (typeof CBSendUnsubscribed === "function") {}
 				},
-				sendUnsubscribe: function(user, CBSendUnsubscribe) {
+				connector_privacyChat_sendUnsubscribe: function(event, user, CBSendUnsubscribe) {
 					var aPresence = new JSJaCPresence();
 					aPresence.setTo(user.toString());
 					aPresence.setType("unsubscribe");
 					con.send(aPresence);
 					if (typeof CBSendUnsubscribe === "function") {}
 				},
-				sendBothSubscribe: function(user, tag) {
+				connector_privacyChat_sendBothSubscribe: function(event, user, tag) {
 					var aPresence = new JSJaCPresence();
 					aPresence.setType("subscribed").setTo(user.toString());
 					con.send(aPresence, function(aJSJaCPacket) {
@@ -370,35 +491,46 @@ HICHAT.connector = (function($, window) {
 							}
 						});
 					});
-				}
-			};
-		}()),
-
-		rosterModule = (function() {
-			return {
-				rosterRequest: function(CBRosterRequest) {
+				},
+				connector_privacyChat_rosterRequest: function(event, CBRosterRequest) {
 					var aIQ = new JSJaCIQ();
 					aIQ.setType("get").setQuery(NS_ROSTER);
+					console.log(aIQ.xml());
 					con.sendIQ(aIQ, {
-						error_handler: function() {},
+						error_handler: function(aJSJaCPacket) {
+							console.log(aJSJaCPacket.xml());
+						},
 						result_handler: function(aIQ) {
+							console.log(aIQ.xml());
+							var friends = [];
 							$("item", aIQ.getQuery()).each(function() {
 								var that = $(this),
 									wholeJid = that.attr("jid"),
-									user = new User({
-										jid: wholeJid.substring(0, wholeJid.indexOf("@")),
-										domain: wholeJid.substring(wholeJid.indexOf("@") + 1)
+									groups = [],
+									friend = new Friend({
+										vCard: new VCard({
+											jid: wholeJid.substring(0, wholeJid.indexOf("@")),
+											domain: wholeJid.substring(wholeJid.indexOf("@") + 1)
+										})
 									});
+								$("group", that).each(function() {
+									groups.push($(this).text());
+								});
+								friend.setGroups(groups);
 								if (that.attr("subscription") === 'both') {
-									vCardModule.getOtherVCard(user);
+									friends.push(friend);
 								}
 							});
+							eventProcessor.triggerEvent("service_roster_rosterRequested", [friends]);
 							con.send(new JSJaCPresence());
 						},
-						default_handler: function() {}
+						default_handler: function(aJSJaCPacket) {
+							console.log(aJSJaCPacket.xml());
+						}
 					});
+					console.log(aIQ.xml());
 				},
-				removeRoster: function(user, CBRemoveRoster) {
+				connector_privacyChat_removeRoster: function(event, user, CBRemoveRoster) {
 					var aIQ = new JSJaCIQ(),
 						queryNode,
 						itemNode;
@@ -414,45 +546,42 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 					if (typeof CBRemoveRoster === "function") {}
-				}
-			};
-		}()),
-
-		connectModule = (function() {
-			return {
-				login: function(username, password) {
-					var connArgs = {
-						httpbase: config.httpbase,
-						timerval: config.timerval
-					};
-
-					if (config.type === 'binding') {
-						con = new JSJaCHttpBindingConnection(connArgs);
-					} else {
-						con = new JSJaCHttpPollingConnection(connArgs);
-					}
-
-					__initConnection();
-
-					connArgs = {
-						domain: config.domain,
-						username: username,
-						resource: config.resource,
-						pass: password
-					};
-					con.connect(connArgs);
 				},
-
-				logout: function() {
-					var p = new JSJaCPresence();
-					p.setType("unavailable");
-					con.send(p);
-					con.disconnect();
+				connector_privacyChat_changeStatus: function(event, status) {
+					var aPresence = new JSJaCPresence(),
+						showNode = aPresence.buildNode("show");
+					showNode.appendChild(document.createTextNode(status));
+					aPresence.appendNode(showNode);
+					con.send(aPresence);
+				},
+				connector_privacyChat_changeGroup: function(event, friend) {
+					var aIQ = new JSJaCIQ(),
+						queryNode = aIQ.setType("set").setQuery(NS_ROSTER),
+						itemNode = aIQ.buildNode("item"),
+						groups = friend.getGroups(),
+						i;
+					console.log(groups);
+					itemNode.setAttribute("jid", friend.getVCard().toString());
+					itemNode.setAttribute("subscription", "both");
+					for (i = groups.length; i--;) {
+						itemNode.appendChild(aIQ.buildNode("group", groups[i]));
+					}
+					queryNode.appendChild(itemNode);
+					con.sendIQ(aIQ, {
+						error_handler: function(aJSJaCPacket) {
+							console.log("发生错误", aJSJaCPacket.xml());
+						},
+						result_handler: function(aJSJaCPacket) {
+							eventProcessor.triggerEvent("service_roster_changedGroup", [friend]);
+						},
+						default_handler: function(aJSJaCPacket) {
+							console.log("发生错误", aJSJaCPacket.xml());
+						}
+					});
 				}
-			};
+			});
 		}()),
-
-		roomModule = (function() {
+		groupChatModule = (function() {
 			var __errorhandler = function(aJSJaCPacket) {
 				var errorCode = Number($("error", aJSJaCPacket.xml()).attr("code"));
 				switch (errorCode) {
@@ -484,28 +613,18 @@ HICHAT.connector = (function($, window) {
 						eventProcessor.triggerEvent("service_noticeError", ["发生错误，请稍后再试！"]);
 				}
 			};
-			return {
-				/*
-					oArgs = {
-						roomId: $("input[name='roomId']", createRoomDialog).val(),
-						roomName: $("input[name='roomName']", createRoomDialog).val(),
-						roomDesc: $("textarea[name='roomDesc']").val(),
-						enableloging: $("textarea[name='enableloging']").val(),
-						changesubject: $("input[name='changesubject']").val(),
-						allowinvites: $("input[name='allowinvites']").val(),
-						maxusers: $("select[name='maxusers']").val(),
-						publicroom: $("input[name='publicroom']").val(),
-						persistentroom: $("input[name='persistentroom']").val(),
-						moderatedroom: $("input[name='moderatedroom']").val(),
-						membersonly: $("input[name='membersonly']").val(),
-						passwordprotectedroom: $("input[name='passwordprotectedroom']").val(),
-						roomsecret: $("input[name='roomsecret']").val(),
-						whois: $("input[name='whois']").val(),
-						roomadmins: []
-					};
-
-				*/
-				createRoom: function(roomConfig, CBCreateRoom) {
+			eventProcessor.bindEvent({
+				connector_groupChat_sendMsg: function(event, message, CBGroupBroadcastMsg) {
+					var room = message.getGroupUser().getRoom(),
+						msgBody = message.getMessage(),
+						aMessage = new JSJaCMessage(),
+						bodyNode = aMessage.buildNode("body");
+					aMessage.setTo(room.toString()).setType("groupchat");
+					bodyNode.appendChild(document.createTextNode(msgBody));
+					aMessage.appendNode(bodyNode);
+					con.send(aMessage);
+				},
+				connector_groupChat_createRoom: function(event, roomConfig, CBCreateRoom) {
 					var aPresence = new JSJaCPresence(),
 						aX = aPresence.buildNode("x"),
 						roomJID = roomConfig.toString();
@@ -571,7 +690,7 @@ HICHAT.connector = (function($, window) {
 						});
 					});
 				},
-				deleteRoom: function(room, newRoom, reason, password, CBDeleteRoom) {
+				connector_groupChat_deleteRoom: function(event, room, newRoom, reason, password, CBDeleteRoom) {
 					var aIQ = new JSJaCIQ(),
 						queryNode = aIQ.setType("set").setTo(room.toString()).setQuery(NS_MUC_OWNER),
 						destroyNode = aIQ.buildNode("destroy"),
@@ -594,14 +713,14 @@ HICHAT.connector = (function($, window) {
 					con.sendIQ(aIQ, {
 						error_handler: __errorhandler,
 						result_handler: function(aJSJaCPacket) {
-							eventProcessor.triggerEvent("service_groupChat_deletedRoom", [aJSJaCPacket.getFromJID().getNode()]);
+							eventProcessor.triggerEvent("service_groupChat_deletedRoom", [aJSJaCPacket.getFrom(), reason]);
 						},
 						default_handler: function(aJSJaCPacket) {
 							console.log(aJSJaCPacket.xml());
 						}
 					});
 				},
-				listRoom: function(groupChatResource, domain) {
+				connector_groupChat_listRoom: function(event, groupChatResource, domain) {
 					var aIQ = new JSJaCIQ();
 					groupChatResource = groupChatResource || config.groupChatResource;
 					domain = domain || config.domain;
@@ -625,14 +744,14 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				listGroupChatResource: function(domain) {
+				connector_groupChat_listGroupChatResource: function(event, domain) {
 
 				},
 				/*
 					roomUser
 					password (optional)
 				*/
-				joinRoom: function(roomUser, password, CBJoinRoom) {
+				connector_groupChat_joinRoom: function(event, roomUser, password, CBJoinRoom) {
 					var aPresence = new JSJaCPresence(),
 						xNode = aPresence.buildNode("x"),
 						passwordNode;
@@ -660,7 +779,7 @@ HICHAT.connector = (function($, window) {
 					domain
 					groupChatResource
 				*/
-				findRoom: function(groupChatResource, domain, CBFindRoom) {
+				connector_groupChat_findRoom: function(event, groupChatResource, domain, CBFindRoom) {
 					try {
 						var aIQ = new JSJaCIQ();
 						groupChatResource = groupChatResource || config.groupChatResource;
@@ -676,21 +795,7 @@ HICHAT.connector = (function($, window) {
 						console.log(e.message);
 					}
 				},
-				/*this.passwordProtected = oArgs.passwordProtected;
-				this.hidden = oArgs.hidden;
-				this.temporary = oArgs.temporary;
-				this.open = oArgs.open;
-				this.unmoderated = oArgs.unmoderated;
-				this.nonanonymous = oArgs.nonanonymous;
-				this.description = oArgs.description;
-				this.changesubject = oArgs.changesubject;
-				this.contactjid = oArgs.contactjid;
-				this.subject = oArgs.subject;
-				this.occupants = oArgs.occupants;
-				this.language = oArgs.language;
-				this.logs = oArgs.logs;
-				this.pubsub = oArgs.pubsub;*/
-				getRoomInfo: function(room, CBGetRoomInfo) {
+				connector_groupChat_getRoomInfo: function(event, room, CBGetRoomInfo) {
 					var aIQ = new JSJaCIQ();
 					aIQ.setTo(room.toString()).setType("get").setQuery(NS_DISCO_INFO);
 					con.sendIQ(aIQ, {
@@ -731,7 +836,7 @@ HICHAT.connector = (function($, window) {
 					nickname
 					status (optional)
 				*/
-				leaveRoom: function(room, status, CBLeaveRoom) {
+				connector_groupChat_leaveRoom: function(event, room, status, CBLeaveRoom) {
 					var aPresence = new JSJaCPresence(),
 						statusNode;
 					aPresence.setTo(room.toString()).setType("unavailable");
@@ -744,19 +849,11 @@ HICHAT.connector = (function($, window) {
 						console.log(aJSJaCPacket.getDoc());
 					});
 				},
-				listRoomUsers: function(room, CBListRoomUsers) {
+				connector_groupChat_listRoomUsers: function(event, room, CBListRoomUsers) {
 					var aIQ = new JSJaCIQ();
 					//aIQ.setTo(room.to);
 				},
-				/*
-					nickname
-					domain
-					roomID
-					groupChateventProcessor
-					show
-					status
-				*/
-				changeUserStatus: function(roomUser, show, status, CBChangeUserStatus) {
+				connector_groupChat_changeUserStatus: function(event, roomUser, show, status, CBChangeUserStatus) {
 					var aPresence = new JSJaCPresence(),
 						showNode = aPresence.buildNode("show"),
 						statusNode = aPresence.buildNode("status");
@@ -769,7 +866,7 @@ HICHAT.connector = (function($, window) {
 						console.log(aJSJaCPacket.xml());
 					});
 				},
-				changeAffiliation: function(roomUser, affiliation, CBChangeAffiliation) {
+				connector_groupChat_changeAffiliation: function(event, roomUser, affiliation, CBChangeAffiliation) {
 					var aIQ = new JSJaCIQ(),
 						queryNode,
 						itemNode;
@@ -779,6 +876,7 @@ HICHAT.connector = (function($, window) {
 					itemNode.setAttribute("affiliation", affiliation);
 					itemNode.setAttribute("jid", roomUser.getJid());
 					queryNode.appendChild(itemNode);
+					console.log(aIQ.xml());
 					con.sendIQ(aIQ, {
 						error_handler: __errorhandler,
 						result_handler: function(aJSJaCPacket) {
@@ -786,7 +884,7 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				kickoutUser: function(roomUser, reason, CBKickoutUser) {
+				connector_groupChat_kickoutUser: function(event, roomUser, reason, CBKickoutUser) {
 					var aIQ = new JSJaCIQ(),
 						queryNode,
 						itemNode,
@@ -809,7 +907,7 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				outcastUser: function(roomUser, reason, actor, CBOutcastUser) {
+				connector_groupChat_outcastUser: function(event, roomUser, reason, actor, CBOutcastUser) {
 					var aIQ = new JSJaCIQ(),
 						queryNode,
 						itemNode,
@@ -838,7 +936,7 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				getOutcastList: function(room) {
+				connector_groupChat_getOutcastList: function(event, room) {
 					var aIQ = new JSJaCIQ(),
 						querrNode,
 						itemNode;
@@ -865,7 +963,7 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				getOldNickInRoom: function(room) {
+				connector_groupChat_getOldNickInRoom: function(event, room) {
 					var aIQ = new JSJaCIQ(),
 						queryNode;
 					aIQ.setTo(room.toString()).setType("get");
@@ -885,7 +983,7 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				deleteOutcast: function(userJid, roomJid) {
+				connector_groupChat_deleteOutcast: function(event, userJid, roomJid) {
 					var aIQ = new JSJaCIQ(),
 						queryNode,
 						itemNode;
@@ -902,75 +1000,33 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				changeNickInRoom: function(roomUser, nickname) {
+				connector_groupChat_changeNickInRoom: function(event, roomUser, nickname) {
 					var aPresence = new JSJaCPresence();
 					aPresence.setTo(roomUser.toRoomString() + "/" + nickname);
 					con.send(aPresence);
 				}
-			};
-		}());
-
-	__initConnection = function() {
-		con.registerHandler('message', handles.handleMessage);
-		con.registerHandler('presence', handles.handlePresence);
-		con.registerHandler('iq', handles.handleIQ);
-		con.registerHandler('onconnect', handles.handleConnected);
-		con.registerHandler('onerror', handles.handleError);
-		con.registerHandler('status_changed', handles.handleStatusChanged);
-		con.registerHandler('ondisconnect', handles.handleDisconnected);
-		con.registerIQGet('query', NS_VERSION, handles.handleIqVersion);
-		con.registerIQGet('query', NS_TIME, handles.handleIqTime);
-	},
-	__isConnected = function() {
-		if (con && con.connected()) {
-			return true;
-		}
-		return false;
-	},
-	__disconnect = function() {
-		if (__isConnected()) {
-			con.disconnect();
-		}
-	};
-
-	return {
-		login: connectModule.login,
-		logout: connectModule.logout,
-
-		getMyVCard: vCardModule.getMyVCard,
-		updateMyVCard: vCardModule.updateMyVCard,
-		getOtherVCard: vCardModule.getOtherVCard,
-
-		privacySendMsg: messageModule.privacySendMsg,
-		groupSendMsg: messageModule.groupBroadcastMsg,
-
-		sendSubscribe: subscribeModule.sendSubscribe,
-		sendSubscribed: subscribeModule.sendSubscribed,
-		sendUnsubscribe: subscribeModule.sendUnsubscribe,
-		sendUnsubscribed: subscribeModule.sendUnsubscribed,
-		sendBothSubscribe: subscribeModule.sendBothSubscribe,
-
-		rosterRequest: rosterModule.rosterRequest,
-		removeRoster: rosterModule.removeRoster,
-
-		createRoom: roomModule.createRoom,
-		deleteRoom: roomModule.deleteRoom,
-		joinRoom: roomModule.joinRoom,
-		getRoomInfo: roomModule.getRoomInfo,
-		listRoom: roomModule.listRoom,
-		leaveRoom: roomModule.leaveRoom,
-		changeAffiliation: roomModule.changeAffiliation,
-		kickout: roomModule.kickoutUser,
-		outcast: roomModule.outcastUser,
-		getOutcastList: roomModule.getOutcastList,
-		getOldNickInRoom: roomModule.getOldNickInRoom,
-		deleteOutcast: roomModule.deleteOutcast,
-		changeNickInRoom: roomModule.changeNickInRoom,
-
-		isConnected: __isConnected,
-		closeConnect: __disconnect,
-		bindModules: function(oArgs) {
-			config = oArgs.config;
-		}
-	};
+			});
+		}()),
+		__initConnection = function() {
+			con.registerHandler('message', handleModule.handleMessage);
+			con.registerHandler('presence', handleModule.handlePresence);
+			con.registerHandler('iq', handleModule.handleIQ);
+			con.registerHandler('onconnect', handleModule.handleConnected);
+			con.registerHandler('onerror', handleModule.handleError);
+			con.registerHandler('status_changed', handleModule.handleStatusChanged);
+			con.registerHandler('ondisconnect', handleModule.handleDisconnected);
+			con.registerIQGet('query', NS_VERSION, handleModule.handleIqVersion);
+			con.registerIQGet('query', NS_TIME, handleModule.handleIqTime);
+		},
+		__isConnected = function() {
+			if (con && con.connected()) {
+				return true;
+			}
+			return false;
+		},
+		__disconnect = function() {
+			if (__isConnected()) {
+				con.disconnect();
+			}
+		};
 }(jQuery, window));

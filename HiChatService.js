@@ -1,58 +1,83 @@
 HICHAT.namespace("HICHAT.service");
 HICHAT.service = (function($, window) {
 	var eventProcessor = HICHAT.utils.eventProcessor,
-		connector = null,
+		Friend = HICHAT.model.Friend,
+		VCard = HICHAT.model.VCard,
 		viewer = null,
 		rosterModule = (function() {
 			var friends = {};
 			eventProcessor.bindEvent({
-				service_roster_getOtherVCard : function(event, user){
-					connector.getOtherVCard(user);
+				service_roster_getOtherVCard: function(event, user) {
+					eventProcessor.triggerEvent("connector_vCard_getOtherVCard", [user]);
 				},
 				service_roster_getedOtherVCard: function(event, vCard) {
 					var index = vCard.toString();
-					if (typeof friends[index] === 'undefined') {
-						viewer.addRoster(vCard);
-					} else {
-						viewer.removeRoster(vCard.toSimpleUser());
-						viewer.addRoster(vCard);
-					}
+					eventProcessor.triggerEvent("viewer_drawRosterDetail", [vCard]);
 					friends[index] = vCard;
 				},
+				service_roster_rosterRequested: function(event, friends) {
+					var i;
+					for (i = friends.length; i--;) {
+						eventProcessor.triggerEvent("viewer_drawRoster", [friends[i]]);
+					}
+				},
 				service_roster_setRosterAvailable: function(event, user, presence) {
-					viewer.setRosterAvailable(user);
+					eventProcessor.triggerEvent("viewer_setRosterAvailable", [user, presence]);
+				},
+				service_roster_setRosterUnavailable: function(event, user, presence) {
+					eventProcessor.triggerEvent("viewer_setRosterUnavailable", [user]);
 				},
 				service_roster_subscribeRequest: function(event, user) {
-					viewer.confirm(
-						"来自 " + user.getDomain() + " 的 " + user.getJid() + " 请求订阅您，是否接受？", function() {
-						connector.sendSubscribed(user);
-						connector.getOtherVCard(user);
-					}, function() {
-						connector.sendUnsubscribed(user);
-					});
+					eventProcessor.triggerEvent("viewer_confirm", ["来自 " + user.getDomain() + " 的 " + user.getJid() + " 请求加您为好友，是否接受？",
+						function() {
+							eventProcessor.triggerEvent("connector_privacyChat_sendSubscribed", [user]);
+							eventProcessor.triggerEvent("viewer_drawRoster", [new Friend({
+									vCard: new VCard({
+										jid: user.getJid(),
+										domain: user.getDomain()
+									}),
+									groups: []
+								})]);
+						},
+						function() {
+							eventProcessor.triggerEvent("connector_privacyChat_sendUnsubscribed", [user]);
+						}
+					]);
 				},
 				service_roster_subscribeAccepted: function(event, user) {
-					viewer.noticeSuccess("来自 " + user.getDomain() + " 的 " + user.getJid() + " 同意了您的订阅");
-					connector.sendBothSubscribe(user);
-					connector.getOtherVCard(user);
+					eventProcessor.triggerEvent("viewer_noticeSuccess", ["来自 " + user.getDomain() + " 的 " + user.getJid() + " 同意了您的好友请求"]);
+					eventProcessor.triggerEvent("connector_privacyChat_sendBothSubscribe", [user]);
+					eventProcessor.triggerEvent("viewer_drawRoster", [new Friend({
+							vCard: new VCard({
+								jid: user.getJid(),
+								domain: user.getDomain()
+							}),
+							groups: []
+						})]);
 				},
 				service_roster_subscribeRejected: function(event, user) {
-					viewer.noticeError("来自 " + user.getDomain() + " 的 " + user.getJid() + " 拒绝了您的订阅");
+					eventProcessor.triggerEvent("viewer_noticeError", ["来自 " + user.getDomain() + " 的 " + user.getJid() + " 拒绝了您的好友请求"]);
 				},
 				service_roster_unsubscribeRequest: function(event, user) {
-					viewer.removeRoster(user);
-					viewer.noticeError("来自 " + user.getDomain() + " 的 " + user.getJid() + " 取消了对您的订阅");
-					connector.removeRoster(user);
+					eventProcessor.triggerEvent("viewer_removeRoster", [user]);
+					eventProcessor.triggerEvent("viewer_noticeError", ["来自 " + user.getDomain() + " 的 " + user.getJid() + " 取消了对您的好友关系"]);
+					eventProcessor.triggerEvent("connector_privacyChat_removeRoster", [user]);
 				},
 				service_roster_removedRoster: function(event, user) {
-					viewer.removeRoster(user);
+					eventProcessor.triggerEvent("viewer_removeRoster", [user]);
 				},
 				service_roster_sendSubscribe: function(event, user) {
-					connector.sendSubscribe(user);
+					eventProcessor.triggerEvent("connector_privacyChat_sendSubscribe", [user]);
 				},
 				service_roster_sendUnsubscribe: function(event, user) {
-					connector.sendUnsubscribe(user);
-					viewer.removeRoster(user);
+					eventProcessor.triggerEvent("connector_privacyChat_sendUnsubscribe", [user]);
+					eventProcessor.triggerEvent("viewer_removeRoster", [user]);
+				},
+				service_roster_changeGroup: function(event, friend) {
+					eventProcessor.triggerEvent("connector_privacyChat_changeGroup", [friend]);
+				},
+				service_roster_changedGroup: function(event, friend) {
+					eventProcessor.triggerEvent("viewer_changedGroup", [friend]);
 				}
 			});
 		}()),
@@ -61,50 +86,63 @@ HICHAT.service = (function($, window) {
 			var vCard;
 			eventProcessor.bindEvent({
 				service_selfControl_logouted: function(event) {
-					viewer.setSideBarToLogin();
+					eventProcessor.triggerEvent("viewer_logouted", []);
 				},
 				service_selfControl_logined: function(event, success) {
-					console.log("logined");
-					console.log(viewer);
 					if (success === true) {
-						viewer.setSideBarToMain();
+						eventProcessor.triggerEvent("viewer_logined", []);
 					} else {
-						viewer.setSideBarToLogin();
-						viewer.noticeError("登录失败");
+						eventProcessor.triggerEvent("viewer_logouted", []);
+						eventProcessor.triggerEvent("viewer_noticeError", ["登录失败"]);
 					}
-					connector.getMyVCard();
-					connector.rosterRequest();
+					eventProcessor.triggerEvent("connector_vCard_getMyVCard");
+					eventProcessor.triggerEvent("connector_privacyChat_rosterRequest");
 				},
-				service_selfControl_drawMyVCard: function(event, vCard) {
+				service_selfControl_getedMyVCard: function(event, vCard) {
 					if (typeof vCard === 'undefined') {
-						viewer.noticeError("获取个人名片失败");
+						eventProcessor.triggerEvent("viewer_noticeError", ["获取个人信息失败"]);
 					} else {
-						viewer.drawVCard(vCard);
+						eventProcessor.triggerEvent("viewer_drawVCard", [vCard]);
 					}
 				},
 				service_selfControl_getMyVCard: function(event) {
-					connector.getMyVCard();
+					eventProcessor.triggerEvent("connector_vCard_getMyVCard");
 				},
 				service_selfControl_updateMyVCard: function(evnet, vCard) {
-					connector.updateMyVCard(vCard);
+					eventProcessor.triggerEvent("connector_vCard_updateMyVCard", [vCard]);
+				},
+				service_selfControl_updatedMyVCard: function(evnet, success) {
+					if (success) {
+						eventProcessor.triggerEvent("viewer_noticeSuccess", ["更新个人信息成功"]);
+					} else {
+						eventProcessor.triggerEvent("viewer_noticeError", ["发生错误：更新个人信息失败"]);
+					}
+					eventProcessor.triggerEvent("connector_vCard_getMyVCard");
 				},
 				service_selfControl_login: function(event, username, password) {
-					connector.login(username, password);
+					eventProcessor.triggerEvent("connector_basic_login", [username, password]);
 				},
 				service_selfControl_logout: function(event) {
-					connector.logout();
+					eventProcessor.triggerEvent("connector_basic_logout");
+				},
+				service_selfControl_changeStatus: function(event, status) {
+					eventProcessor.triggerEvent("connector_privacyChat_changeStatus", [status]);
+				},
+				service_selfControl_register: function(event, username, password) {
+					eventProcessor.triggerEvent("connector_basic_register", [username, password]);
 				}
+
 			});
 		}()),
 
 		privacyChatModule = (function() {
 			eventProcessor.bindEvent({
-				service_privacyChat_recieve: function(event, user, msgBody) {
-					viewer.privacyPrintMsg(user, msgBody, 'receive');
+				service_privacyChat_recieveMsg: function(event, message) {
+					eventProcessor.triggerEvent("viewer_privacyPrintMsg", [message, 'receive']);
 				},
-				service_privacyChat_sendMsg: function(event, msgBody, user) {
-					connector.privacySendMsg(msgBody, user);
-					viewer.privacyPrintMsg(user, msgBody, "send");
+				service_privacyChat_sendMsg: function(event, message) {
+					eventProcessor.triggerEvent("connector_privacyChat_sendMsg", [message]);
+					eventProcessor.triggerEvent("viewer_privacyPrintMsg", [message, "send"]);
 				}
 			});
 		}()),
@@ -113,6 +151,9 @@ HICHAT.service = (function($, window) {
 			var rooms = {},
 				__getRoomInfo = function(roomJid) {
 					return rooms[roomJid].roomInfo;
+				},
+				__deleteRoomInfo = function(roomJid) {
+					delete rooms[roomJid];
 				},
 				__getRoomUser = function(userJid, roomJid) {
 					return rooms[roomJid].roomInfo.getCurUsers()[userJid];
@@ -131,7 +172,7 @@ HICHAT.service = (function($, window) {
 						userJid;
 					for (userJid in users) {
 						if (Object.prototype.hasOwnProperty.apply(users, [userJid])) {
-							viewer.drawRoomUser(users[userJid]);
+							eventProcessor.triggerEvent("viewer_drawRoomUser", [users[userJid]]);
 						}
 					}
 					return;
@@ -139,61 +180,77 @@ HICHAT.service = (function($, window) {
 				__setUserAffiliation = function(userJid, roomJid, affiliation) {
 					var roomUser = __getRoomUser(userJid, roomJid);
 					if (typeof roomUser === "undefined") {
-						viewer.noticeError("该用户不在房间内");
+						eventProcessor.triggerEvent("viewer_noticeError", ["该用户不在房间内"]);
 						return;
 					}
-					connector.changeAffiliation(roomUser, affiliation);
+					eventProcessor.triggerEvent("connector_groupChat_changeAffiliation", [roomUser, affiliation]);
 				};
 
 			eventProcessor.bindEvent({
 				service_groupChat_createRoom: function(event, roomConfig) {
-					connector.createRoom(roomConfig);
+					eventProcessor.triggerEvent("connector_groupChat_createRoom", [roomConfig]);
 				},
 				service_groupChat_createdRoom: function(event, roomConfig) {
-					viewer.createdRoom(roomConfig);
+					eventProcessor.triggerEvent("viewer_createdRoom", [roomConfig]);
 				},
-				service_groupChat_deleteRoom: function(event, roomId) {
-
+				service_groupChat_deleteRoom: function(event, roomJid, newRoom, reason) {
+					var room = __getRoomInfo(roomJid);
+					if (room.getAttribute("passwordprotected")) {
+						eventProcessor.triggerEvent("viewer_prompt", ["该房间需要密码，请输入密码",
+							function(password) {
+								eventProcessor.triggerEvent("connector_groupChat_deleteRoom", room, newRoom, reason, password);
+							},
+							function(password) {}
+						]);
+					} else {
+						eventProcessor.triggerEvent("connector_groupChat_deleteRoom", room, newRoom, reason);
+					}
 				},
-				service_groupChat_deletedRoom: function(event, roomId) {
-					viewer.noticeSuccess("移除房间" + roomId + "成功！");
+				service_groupChat_deletedRoom: function(event, roomJid, reason) {
+					var msg = "房间" + roomJid + "已被移除。";
+					if (typeof reason !== "undefined") {
+						msg += "原因：" + reason;
+					}
+					eventProcessor.triggerEvent("viewer_noticeSuccess", [msg]);
+					eventProcessor.triggerEvent("viewer_deleteRoomChatTab", [__getRoomInfo(roomJid)]);
+					__deleteRoomInfo(roomJid);
 				},
 				service_groupChat_joinRoom: function(event, roomUser, password) {
 					rooms[roomUser.toRoomString()].selfUser = roomUser;
-					connector.joinRoom(roomUser, password);
+					eventProcessor.triggerEvent("connector_groupChat_joinRoom", [roomUser, password]);
 				},
 				service_groupChat_joinedRoom: function(event, roomUser) {
-					viewer.noticeSuccess("加入房间 " + roomUser.getRoom().getRoomName() + " 成功！");
+					eventProcessor.triggerEvent("viewer_noticeSuccess", ["加入房间 " + roomUser.getRoom().getRoomName() + " 成功！"]);
 					rooms[roomUser.toRoomString()].self = roomUser;
 					rooms[roomUser.toRoomString()].roomInfo.getCurUsers()[roomUser.toString()] = roomUser;
-					viewer.drawRoomChatTab(roomUser.getRoom());
+					eventProcessor.triggerEvent("viewer_drawRoomChatTab", [roomUser.getRoom()]);
 				},
 				service_groupChat_listRoom: function(event, groupChatService, domain) {
-					connector.listRoom();
+					eventProcessor.triggerEvent("connector_groupChat_listRoom");
 				},
 				service_groupChat_listedRoom: function(event, roomList) {
 					var i;
 					rooms = {};
-					viewer.listRoom(roomList);
+					eventProcessor.triggerEvent("viewer_listRoom", [roomList]);
 					for (i = roomList.length; i--;) {
 						rooms[roomList[i].toString()] = {
 							roomInfo: roomList[i]
 						};
-						connector.getRoomInfo(roomList[i]);
+						eventProcessor.triggerEvent("connector_groupChat_getRoomInfo", [roomList[i]]);
 					}
 				},
 				service_groupChat_getedRoomInfo: function(event, room) {
 					rooms[room.toString()].roomInfo = room;
-					viewer.drawRoomDetail(room);
+					eventProcessor.triggerEvent("viewer_drawRoomDetail", [room]);
 				},
-				service_groupChat_recieve: function(event, roomUser, msgBody) {
-					viewer.groupPrintMsg(roomUser, msgBody);
+				service_groupChat_recieveMsg: function(event, message) {
+					eventProcessor.triggerEvent("viewer_groupPrintMsg", [message]);
 				},
-				service_groupChat_leaveRoom: function(event) {
-					connector.leaveRoom(room);
+				service_groupChat_leaveRoom: function(event, room) {
+					eventProcessor.triggerEvent("connector_groupChat_leaveRoom", [room]);
 				},
-				service_groupChat_groupSendMsg: function(event, room, msgBody) {
-					connector.groupSendMsg(room, msgBody);
+				service_groupChat_groupSendMsg: function(event, message) {
+					eventProcessor.triggerEvent("connector_groupChat_sendMsg", [message]);
 				},
 				service_groupChat_userJoinRoom: function(event, roomUser) {
 					var users,
@@ -205,50 +262,57 @@ HICHAT.service = (function($, window) {
 							users = __getRoomInfo(roomUser.toRoomString()).getCurUsers();
 							for (userJid in users) {
 								if (Object.prototype.hasOwnProperty.apply(users, [userJid])) {
-									viewer.drawRoomUser(users[userJid]);
+									eventProcessor.triggerEvent("viewer_drawRoomUser", [users[userJid]]);
 								}
 							}
 							return;
 						}
-						viewer.drawRoomUser(roomUser);
+						eventProcessor.triggerEvent("viewer_drawRoomUser", [roomUser]);
 					} catch (e) {
 						console.log(e);
 					}
 				},
 				service_groupChat_userLeaveRoom: function(event, roomUser) {
-					delete __getRoomInfo(roomUser.toRoomString()).getCurUsers()[roomUser.toString()];
-					viewer.deleteRoomUser(roomUser);
+					console.log(roomUser.toString());
+					console.log(__getRoomSelf(roomUser.getRoom().toString()).toString());
+					if (roomUser.toString() === __getRoomSelf(roomUser.getRoom().toString()).toString()) {
+						eventProcessor.triggerEvent("viewer_deleteRoomChatTab", [roomUser.getRoom()]);
+						__deleteRoomInfo(roomUser.getRoom().toString());
+					} else {
+						delete __getRoomInfo(roomUser.toRoomString()).getCurUsers()[roomUser.toString()];
+						eventProcessor.triggerEvent("viewer_deleteRoomUser", [roomUser]);
+					}
 				},
 				service_groupChat_kickout: function(event, userJid, roomJid) {
 					var roomUser = __getRoomUser(userJid, roomJid);
-					connector.kickout(roomUser);
+					eventProcessor.triggerEvent("connector_groupChat_kickout", [roomUser]);
 				},
 				service_groupChat_kickedout: function(event, roomUser) {
 					var roomInfo = __getRoomInfo(roomUser.toRoomString());
 					if (roomUser.toString() === __getRoomSelf(roomUser.toRoomString()).toString()) {
-						viewer.noticeError("您被踢出了“" + roomInfo.getRoomName() + "”房间");
-						viewer.deleteRoomChatTab(roomUser.getRoom());
+						eventProcessor.triggerEvent("viewer_noticeError", ["您被踢出了“" + roomInfo.getRoomName() + "”房间"]);
+						eventProcessor.triggerEvent("viewer_deleteRoomChatTab", [roomUser.getRoom()]);
 						delete rooms[roomUser.toRoomString()];
 					} else {
-						viewer.noticeError(roomUser.getNickname() + "已被踢出了“" + roomInfo.getRoomName() + "”房间");
+						eventProcessor.triggerEvent("viewer_noticeError", [roomUser.getNickname() + "已被踢出了“" + roomInfo.getRoomName() + "”房间"]);
 						delete __getRoomInfo(roomUser.toRoomString()).getCurUsers()[roomUser.toString()];
-						viewer.deleteRoomUser(roomUser);
+						eventProcessor.triggerEvent("viewer_deleteRoomUser", [roomUser]);
 					}
 				},
 				service_groupChat_outcast: function(event, userJid, roomJid, reason) {
 					var roomUser = __getRoomUser(userJid, roomJid);
-					connector.outcast(roomUser, reason, __getRoomSelf(roomJid));
+					eventProcessor.triggerEvent("connector_groupChat_outcast", [roomUser, reason, __getRoomSelf(roomJid)]);
 				},
 				service_groupChat_outcasted: function(event, roomUser, reason) {
 					var roomInfo = __getRoomInfo(roomUser.toRoomString());
 					if (roomUser.toString() === __getRoomSelf(roomUser.toRoomString()).toString()) {
-						viewer.noticeError("您被禁止进入“" + roomInfo.getRoomName() + "”房间.原因：" + reason);
-						viewer.deleteRoomChatTab(roomUser.getRoom());
+						eventProcessor.triggerEvent("viewer_noticeError", ["您被禁止进入“" + roomInfo.getRoomName() + "”房间.原因：" + reason]);
+						eventProcessor.triggerEvent("viewer_deleteRoomChatTab", [roomUser.getRoom()]);
 						delete rooms[roomUser.toRoomString()];
 					} else {
-						viewer.noticeError(roomUser.getNickname() + "已被踢出了“" + roomInfo.getRoomName() + "”房间。原因:" + reason);
+						eventProcessor.triggerEvent("viewer_noticeError", [roomUser.getNickname() + "已被踢出了“" + roomInfo.getRoomName() + "”房间。原因:" + reason]);
 						delete __getRoomInfo(roomUser.toRoomString()).getCurUsers()[roomUser.toString()];
-						viewer.deleteRoomUser(roomUser);
+						eventProcessor.triggerEvent("viewer_deleteRoomUser", [roomUser]);
 					}
 				},
 				service_groupChat_setRoomAdmin: function(event, userJid, roomJid) {
@@ -264,37 +328,36 @@ HICHAT.service = (function($, window) {
 					__setUserAffiliation(userJid, roomJid, "none");
 				},
 				service_groupChat_getOutcastList: function(event, roomJid) {
-					connector.getOutcastList(__getRoomInfo(roomJid));
+					eventProcessor.triggerEvent("connector_groupChat_getOutcastList", [__getRoomInfo(roomJid)]);
 				},
 				service_groupChat_getedOutcastList: function(event, outcastUserList, roomJid) {
-					viewer.drawOutcastList(outcastUserList, __getRoomInfo(roomJid));
+					eventProcessor.triggerEvent("viewer_drawOutcastList", [outcastUserList, __getRoomInfo(roomJid)]);
 				},
 				service_groupChat_deleteOutcast: function(event, userJid, roomJid) {
-					connector.deleteOutcast(userJid, roomJid);
+					eventProcessor.triggerEvent("connector_groupChat_deleteOutcast", [userJid, roomJid]);
 				},
 				service_groupChat_deletedOutCast: function(event, userJid, roomJid) {
-					console.log("service_groupChat_deletedOutCast");
-					viewer.removeOutcast(userJid, roomJid);
+					eventProcessor.triggerEvent("viewer_removeOutcast", [userJid, roomJid]);
 				},
 				service_groupChat_getOldNick: function(event, roomJid) {
-					connector.getOldNickInRoom(__getRoomInfo(roomJid));
+					eventProcessor.triggerEvent("connector_groupChat_getOldNickInRoom", [__getRoomInfo(roomJid)]);
 				},
 				service_groupChat_getedOldNick: function(event, roomJid, oldNick) {
-					view.setOldNick(__getRoomInfo(roomJid), oldNick);
+					eventProcessor.triggerEvent("viewer_setOldNick", [__getRoomInfo(roomJid), oldNick]);
 				},
 				service_groupChat_changeNickInRoom: function(event, roomJid, newNickname) {
-					connector.changeNickInRoom(__getRoomSelf(roomJid), newNickname);
+					eventProcessor.triggerEvent("connector_groupChat_changeNickInRoom", [__getRoomSelf(roomJid), newNickname]);
 				},
-				service_groupChat_changedNickname: function(event, roomUser, newNickname) {
+				service_groupChat_changedNickInRoom: function(event, roomUser, newNickname) {
 					var selfUser = __getRoomSelf(roomUser.toRoomString()),
 						user;
 					if (roomUser.toString() === selfUser.toString()) {
 						selfUser.setNickname(newNickname);
 					}
 					user = __getRoomUser(roomUser.toString(), roomUser.toRoomString());
-					viewer.deleteRoomUser(user);
+					eventProcessor.triggerEvent("viewer_deleteRoomUser", [user]);
 					user.setNickname(newNickname);
-					viewer.drawRoomUser(user);
+					eventProcessor.triggerEvent("viewer_drawRoomUser", [user]);
 				}
 			});
 
@@ -314,20 +377,18 @@ HICHAT.service = (function($, window) {
 
 	eventProcessor.bindEvent({
 		service_noticeError: function(event, msg) {
-			viewer.noticeError(msg);
+			eventProcessor.triggerEvent("viewer_noticeError", [msg]);
 		},
 		service_noticeSuccess: function(event, msg) {
-			viewer.noticeSuccess(msg);
+			eventProcessor.triggerEvent("viewer_noticeSuccess", [msg]);
 		}
 	});
 
 	return {
-		//群聊
 		getSelfInRoom: groupChatModule.getSelfInRoom,
 		getRoomInfo: groupChatModule.getRoomInfo,
 
 		bindModules: function(oArgs) {
-			connector = oArgs.connector;
 			viewer = oArgs.viewer;
 		}
 	};

@@ -8,7 +8,6 @@
 	});
 
 	HICHAT.service.bindModules({
-		connector: HICHAT.connector,
 		viewer: HICHAT.viewer
 	});
 

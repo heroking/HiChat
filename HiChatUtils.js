@@ -38,3 +38,26 @@ HICHAT.utils.eventProcessor = (function($, window) {
 		}
 	};
 }(jQuery, window));
+
+jQuery.fn.extend({
+  slideRightShow: function(callback) {
+    return this.each(function() {
+        $(this).show('slide', {direction: 'right'}, 1000, callback);
+    });
+  },
+  slideLeftHide: function(callback) {
+    return this.each(function() {
+      $(this).hide('slide', {direction: 'left'}, 1000, callback);
+    });
+  },
+  slideRightHide: function(callback) {
+    return this.each(function() {
+      $(this).hide('slide', {direction: 'right'}, 1000, callback);
+    });
+  },
+  slideLeftShow: function(callback) {
+    return this.each(function() {
+      $(this).show('slide', {direction: 'left'}, 1000, callback);
+    });
+  }
+});

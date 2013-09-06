@@ -2,251 +2,17 @@
     "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
     <head>
-        <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+        <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
         <title>
             HiChat
         </title>
-        <link rel="stylesheet" type="text/css" href="bootstrap/css/flatstrap.min.css">
-        <link rel="stylesheet" type="text/css" href="cikonss/cikonss.css">
-        <link rel="stylesheet" type="text/css" href="alertify/themes/alertify.core.css">
-        <link rel="stylesheet" type="text/css" href="alertify/themes/alertify.bootstrap.css">
-        <link rel="stylesheet" type="text/css" href="jquery-ui-bootstrap/css/custom-theme/jquery-ui-1.10.0.custom.css">
-
-        <style type="text/css">
-          html, body{
-            font-family: "Microsoft YaHei","STSong",'lucida grande', tahoma, verdana, arial, sans-serif;
-            height : 100%;
-          }
-        /*#sideBar{
-          -webkit-background-clip: border-box;
-          -webkit-background-origin: padding-box;
-          -webkit-background-size: auto;
-          -webkit-box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
-          background-attachment: scroll;
-          background-clip: border-box;
-          background-color: rgb(51, 51, 51);
-          background-image: none;
-          background-origin: padding-box;
-          background-size: auto;
-          box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
-          color: rgb(255, 255, 255);
-          display: block;
-          font-size: 15px;
-          height: 100%;
-          left: auto;
-          overflow-y: auto;
-          position: fixed;
-          right: 0px;
-          top: 0px;
-          width: 260px;
-          z-index: 4999;
-        }*/
-        #rosterTb {
-          text-align:center;
-          width:100%;
-        }
-        #rosterTb td{
-          padding-top:5px;
-          padding-bottom: 5px;
-          height: 80px;
-          font-size: 75%
-        }
-        #rosterTb .u-head{
-          width: 50px;
-          height: 50px;
-        }
-        #rosterTb .u-opt{
-          width: 20px;
-          height: 20px;
-        }
-        #rosterTb .u-mc{
-          float:right;
-          position: relative;
-          left : 5px;
-          top : 10px;
-          height: 20px;
-          width: 20px;
-          background-color: red;
-          border-radius: 10px;
-        }
-
-        .m-cp {
-        }
-
-        .m-cp .u-cta {
-          overflow-y : auto;
-          width: auto;
-        }
-
-        .m-cp .u-cta table{
-          width : 100%;
-          word-break : break-all;
-        }
-
-        .m-cp .u-sd {
-          overflow: visible;
-          display: block;
-          font-size: 15px;
-          position: fixed;
-          padding: 5px 10px 5px 10px;
-          bottom: 0;
-          left : 210px;
-        }
-        .m-cp .u-sd textarea{
-          width : 400px;
-          height : 20px;
-          margin-bottom: 0;
-        }
-
-        .m-cp .u-sd ul{
-          text-align: center;
-          color : #5bb75b;        
-        }
-        .m-cp .u-sd ul li:hover{
-          color : white;        
-          background-color: #5bb75b;     
-        }
-        /*.chatPanel {
-          width: auto;
-          margin-right: 330px;
-          margin-left: 20px;
-          margin-top: 20px;
-          margin-bottom: 20px;
-          height: 600px;
-          padding: 20px 20px 20px 20px;
-        }
-        .chatPanel .chatTextArea{
-          margin-top:20px;
-          margin-bottom: 60px;
-          height: 100%;
-          overflow-y : auto;
-        }
-        .chatPanel .chatTextArea table{
-          width : 100%;
-          word-break:break-all;
-        }
-        .chatPanel .sendDiv{
-          -webkit-background-clip: border-box;
-          -webkit-background-origin: padding-box;
-          -webkit-background-size: auto;
-          -webkit-box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
-          background-attachment: scroll;
-          background-clip: border-box;
-          background-color: rgb(51, 51, 51);
-          background-image: none;
-          background-origin: padding-box;
-          background-size: auto;
-          box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
-          color: rgb(255, 255, 255);
-          display: block;
-          font-size: 15px;
-          position: fixed;
-          padding: 25px 50px 25px 50px;
-          right: 260px;
-          bottom: 0px;
-          z-index: 4999;
-        }
-
-        .chatPanel .sendDiv .sendTextArea{
-          width : 400px;
-          height : 20px;
-          margin-bottom: 0;
-        }
-*/
-        #vCardDialog,.vCardPanel,#subscribeDialog {
-          padding: 20px 20px 20px 20px;
-        }
-        .dialog table{
-          font-size: 120%;
-          width:100%;
-          text-align: center;
-          line-height: 40px;
-        }
-        .dialog table td{
-          height:40px;
-        }
-
-        .dialog ul li:nth-child(even) {
-          background-color : white;
-          display: inline;
-        }
-        .dialog ul li:nth-child(even) {
-          background-color : #CED8EB;
-          display: inline;
-        }
-        .menuBtns {
-          opacity: 0.5;
-        }
-        .menuBtns:hover{
-          opacity: 1;
-        }
-        .menuBtns img{
-          width: 30px;
-          height: 30px;
-        }
-
-        #chatTab {
-          font-weight: bolder;
-          font-size: 120%;
-        }
-
-        .g-bd1{
-          margin: 0;
-          height: 100%;
-        }
-        .g-sd1{
-          position: relative;
-          float: left;
-          width: 200px;
-          margin-right : -200px;
-          height: 100%;
-        }
-        .g-mn1{
-          float: right;
-          width: 100%;
-          height: 100%;
-        }
-        .g-mn1c{
-          margin-left: 210px;
-          height: 100%;
-        }
-        .s-sd{
-          -webkit-background-clip: border-box;
-          -webkit-background-origin: padding-box;
-          -webkit-background-size: auto;
-          -webkit-box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
-          background-attachment: scroll;
-          background-clip: border-box;
-          background-color: rgb(51, 51, 51);
-          background-image: none;
-          background-origin: padding-box;
-          background-size: auto;
-          box-shadow: rgb(34, 34, 34) 0px 0px 5px 5px inset;
-          color: rgb(255, 255, 255);
-          font-size: 15px;
-          overflow-y: auto;
-        }
-        .m-ctm {
-          position: absolute;
-          display: none;
-          border-radius: 5px;
-          border : 1px solid #5bb75b;
-          background-color: white;
-          padding : 10px 5px;
-        }
-
-        .m-ctm ul{
-          color: #5bb75b;
-          text-align: center;
-          list-style: none; 
-          margin:0;   
-        }
-
-        .m-ctm ul .u-admin:hover,.m-ctm ul .u-user:hover{
-          color : white;
-          background-color: #5bb75b;
-        }
-        </style>
+        <link rel="stylesheet" type="text/css" href="bootstrap/css/flatstrap.min.css"/>
+        <link rel="stylesheet" type="text/css" href="cikonss/cikonss.css"/>
+        <link rel="stylesheet" type="text/css" href="alertify/themes/alertify.core.css"/>
+        <link rel="stylesheet" type="text/css" href="alertify/themes/alertify.bootstrap.css"/>
+        <link rel="stylesheet" type="text/css" href="jquery-ui-bootstrap/css/custom-theme/jquery-ui-1.10.0.custom.css"/>
+        <link rel="stylesheet" type="text/css" href="tipped/tipped.css" />
+        <link rel="stylesheet" type="text/css" href="HiChat.css">
     </head>
     <body>
         <div class="g-bd1 f-cb">
@@ -268,7 +34,7 @@
                                         <td>
                                             <input name="password" class="" type="password" placeholder="密码" style="margin-left:10px;width:140px">
                                         </td>
-                                    </tr>
+                                    </tr> 
                                     <tr height="40">
                                         <td colspan="2" style="text-align:center">
                                             <button type="submit" class="btn btn-success" style="margin-right:20px">登陆</button> <button class="btn btn-info" style="" id="registerBtn">注册</button>
@@ -279,42 +45,83 @@
                         </fieldset>
                     </form>
                 </div>
-                <div id="mainDiv" style="padding:10px 10px 10px 10px;display:none">
+                <div id="mainDiv" style="padding:10px 0 10px 10px;display:none">
                     <div style="width:100%;text-align:center" id="myNameAndHeader">
-                        <h3>
-                            nickname
-                        </h3><img id="myHeader" width="90" height="90" src="resources/defaultHeader.jpg">
+                        <h3 id="myNickname"></h3>
+                        <div id="myHeaderDiv" style="position:relative">
+                          <img id="myHeader" src="resources/defaultHeader.jpg" />
+                          <img id="myStatus" src="resources/user-chat.png" />
+                        </div>
                     </div>
-                    <div style="height:600px;overflow-y:auto">
-                        <table id="rosterTb">
+                    <div>
+                        <!-- <table id="rosterTb">
                             <thead>
                                 <tr>
                                     <th width="52"></th>
                                     <th></th>
-                                    <th width="52"></th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
-                        </table>
+                        </table> -->
+                        <div class="btn btn-success g-line u-cg" id="changeGroupBtn">
+                            全部好友
+                        </div>
+                        <div id="rosterTb">
+                          <!-- 测试好友列表滚动条专用 -->
+                          <!-- <div class="g-line" style="opacity: 0.3;"><img class="u-status" src="resources/status_offline.png"><div class="u-head"><div><span class="u-mc" style="display:none"></span><img src="resources/defaultHeader.jpg"></div></div><div class="u-nick">test</div></div>                          <div class="g-line" style="opacity: 0.3;"><img class="u-status" src="resources/status_offline.png"><div class="u-head"><div><span class="u-mc" style="display:none"></span><img src="resources/defaultHeader.jpg"></div></div><div class="u-nick">test</div></div>                          <div class="g-line" style="opacity: 0.3;"><img class="u-status" src="resources/status_offline.png"><div class="u-head"><div><span class="u-mc" style="display:none"></span><img src="resources/defaultHeader.jpg"></div></div><div class="u-nick">test</div></div>                          <div class="g-line" style="opacity: 0.3;"><img class="u-status" src="resources/status_offline.png"><div class="u-head"><div><span class="u-mc" style="display:none"></span><img src="resources/defaultHeader.jpg"></div></div><div class="u-nick">test</div></div>                          <div class="g-line" style="opacity: 0.3;"><img class="u-status" src="resources/status_offline.png"><div class="u-head"><div><span class="u-mc" style="display:none"></span><img src="resources/defaultHeader.jpg"></div></div><div class="u-nick">test</div></div><div class="g-line" style="opacity: 0.3;"><img class="u-status" src="resources/status_offline.png"><div class="u-head"><div><span class="u-mc" style="display:none"></span><img src="resources/defaultHeader.jpg"></div></div><div class="u-nick">test</div></div> -->
+                          <!-- /测试好友列表滚动条专用 -->
+
+                        </div>
                     </div>
                     <div id="groupMenu" style="width:100%;position:absolute;bottom:60px;right:0;display:none">
                         <div style="margin-left:10px;margin-right:10px">
-                            <span id="createRoomBtn" class="menuBtns"><img src='resources/createRoomIcon.png'></span> <span id="joinRoomBtn" class="menuBtns"><img src='resources/joinRoomIcon.png'></span> <span id="deleteRoomBtn" class="menuBtns"><img src='resources/deleteRoomIcon.png'></span>
+                            <span id="createRoomBtn" class="menuBtns"><img alt='创建房间' src='resources/createRoomIcon.png'></span>
+                            <span id="joinRoomBtn" class="menuBtns"><img alt='加入房间' src='resources/joinRoomIcon.png'></span>
                         </div>
                     </div>
                     <div style="width:100%;position:absolute;bottom:20px;right:0;">
                         <div style="margin-left:10px;margin-right:10px">
-                            <span id="subscribeBtn" class="menuBtns"><img src='resources/subscribeIcon.png'></span> <span id="optionBtn" class="menuBtns"><img src='resources/optionIcon.png'></span> <span id="chatHistoryBtn" class="menuBtns"><img src='resources/chatHistoryIcon.png'></span> <span id="groupChatBtn" class="menuBtns"><img src='resources/groupIcon.png'></span> <span id="logoutBtn" class="menuBtns"><img src='resources/logoutIcon.png'></span>
+                            <span id="subscribeBtn" class="menuBtns"><img alt='申请好友' src='resources/subscribeIcon.png'></span>
+                            <span id="optionBtn" class="menuBtns"><img alt='个人信息设置' src='resources/optionIcon.png'></span>
+                            <span id="chatHistoryBtn" class="menuBtns"><img alt='聊天历史记录查询' src='resources/chatHistoryIcon.png'></span>
+                            <span id="groupChatBtn" class="menuBtns"><img alt='群聊' src='resources/groupIcon.png'></span>
+                            <span id="logoutBtn" class="menuBtns"><img alt='退出' src='resources/logoutIcon.png'></span>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="g-mn1">
-                <div class="g-mn1c">
+            <div class="g-mn1 s-bg1">
+                <div class="g-mn1c" >
                     <div id="chatTabs">
                       <ul id="chatTabUl"></ul>
                       <div id="chatTabContent"></div>
                     </div>
+                    <!-- 注册对话框 -->
+                    <div id="registerDialog" class="dialog">
+                      <form id="registerForm">
+                        <table>
+                          <tbody>
+                            <tr>
+                              <td>用户名</td>
+                              <td><input type="text" placeholder="请填写用户名" name="username"/></td>
+                            </tr>
+                            <tr>
+                              <td>密码</td>
+                              <td><input type="password" placeholder="请填写密码" name="password"/></td>
+                            </tr>
+                            <tr>
+                              <td>确认密码</td>
+                              <td><input type="password" placeholder="请确认密码" name="passRepeat"/></td>
+                            </tr>
+                            <tr>
+                              <td colspan=2><button class="btn btn-success" type="submit">提交</button></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </form>
+                    </div>
+                    <!-- /注册对话框 -->
                     <!-- 显示个人名片的对话框 -->
                     <div id="vCardDialog" class="dialog">
                         <table class="vCardTb">
@@ -378,6 +185,15 @@
                                     <td></td>
                                     <td>
                                         <textarea style="height:200px" name='desc'></textarea>
+                                    </td>
+                                </tr>
+                                <tr itemtype='photo'>
+                                    <td>
+                                        个人头像：
+                                    </td>
+                                    <td></td>
+                                    <td>
+                                        <input style="width:220px" type="file" name='image' id='selfPhotoInput' placeholder='个人头像'>
                                     </td>
                                 </tr>
                             </tbody>
@@ -560,22 +376,63 @@
                       </table>
                     </div>
                     <!-- /黑名单对话框 -->
+                    <!-- 状态修改菜单栏 -->
+                    <div id="statusContextMenu" class="m-ctm">
+                      <ul>
+                        <li value="chat">正常</li>
+                        <li value="away">离开</li>
+                        <li value="dnd">忙碌</li>
+                        <li value="xa">长时间离开</li>
+                      </ul>
+                    </div>
+                    <!-- /状态修改菜单栏 -->
+                    <!-- 好友菜单栏 -->
+                    <div id="rosterContextMenu" class="m-ctm">
+                      <ul>
+                        <li value="chat">开启聊天窗</li>
+                        <li value="info">查看信息</li>
+                        <li value="group">添加分组</li>
+                        <li value="delete">删除好友</li>
+                      </ul>
+                    </div>
+                    <!-- /好友菜单栏 -->
+                    <!-- 分组切换菜单栏 -->
+                    <div id="changeGroupMenu" class="m-ctm">
+                      <ul>
+                        <li value="all">全部好友</li>
+                        <li value="online">在线好友</li>
+                        <!-- <li value="noGroup">未分组</li> -->
+                      </ul>
+                    </div>
+                    <!-- /分组切换菜单栏 -->
+                    <!-- 好友分组对话框 -->
+                    <div id="rosterGroupDialog" class="dialog">
+                      <strong></strong>
+                      <hr>
+                      <form id="groupForm">
+                        <ul>
+                        </ul>
+                        <button class="btn btn-success" type="submit">提交</button>
+                        <button class="btn btn-primary" id="groupCreateBtn">新建</button>
+                      </form>
+                    </div>
+                    <!-- /好友分组菜单栏 -->
                 </div>
             </div>
         </div>
-        <script type="text/javascript" src="jquery-1.9.1.js">
-        </script><script type="text/javascript" src="bootstrap/js/bootstrap.min.js">
-        </script><script type="text/javascript" src="alertify/alertify.min.js">
-        </script><script type="text/javascript" src="jquery-ui-bootstrap/js/jquery-ui-1.9.2.custom.min.js">
-        </script><script type="text/javascript" src="jsjac.uncompressed.js">
-        </script><script type="text/javascript" src="HiChatUtils.js">
-        </script><script type="text/javascript" src="HiChatConfig.js">
-        </script><script type="text/javascript" src="HiChatModel.js">
-        </script><script type="text/javascript" src="HiChatService.js">
-        </script><script type="text/javascript" src="HiChatConnector.js">
-        </script><script type="text/javascript" src="HiChatViewer.js">
-        </script><script type="text/javascript" src="HiChatMain.js">
-        </script><script type="text/javascript">
-        </script>
+        <script type="text/javascript" src="jquery-1.9.1.js"></script>
+        <script type="text/javascript" src="tipped/tipped.js"></script>
+        <script type="text/javascript" src="ajaxfileupload.js"></script>
+        <script type="text/javascript" src="bootstrap/js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="alertify/alertify.min.js"></script>
+        <script type="text/javascript" src="jquery-ui-bootstrap/js/jquery-ui-1.9.2.custom.min.js"></script>
+        <script type="text/javascript" src="jsjac.uncompressed.js"></script>
+        <script type="text/javascript" src="HiChatUtils.js"></script>
+        <script type="text/javascript" src="HiChatConfig.js"></script>
+        <script type="text/javascript" src="HiChatModel.js"></script>
+        <script type="text/javascript" src="HiChatService.js"></script>
+        <script type="text/javascript" src="HiChatConnector.js"></script>
+        <script type="text/javascript" src="HiChatViewer.js"></script>
+        <script type="text/javascript" src="HiChatMain.js"></script>
     </body>
 </html>

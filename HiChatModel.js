@@ -27,7 +27,7 @@ HICHAT.model.klass = function(Parent, props) {
 HICHAT.model.SimpleUser = HICHAT.model.klass(null, {
 	__construct: function(oArgs) {
 		if (typeof oArgs === 'string') {
-			var result = /([\w-]+)@([\w-]+)(?:\/([\w-]+))?/.exec(oArgs);
+			var result = /([\w\-\u4e00-\u9fa5]+)@([\w\-.]+)(?:\/([\w-]+))?/.exec(oArgs);
 			this.jid = result[1];
 			this.domain = result[2];
 			this.resource = result[3];
@@ -82,7 +82,7 @@ HICHAT.model.Presence = HICHAT.model.klass(null, {
 		this.show = show;
 	},
 	getShow: function() {
-		return show;
+		return this.show;
 	},
 	setStatus: function(status) {
 		this.status = status;
@@ -93,6 +93,25 @@ HICHAT.model.Presence = HICHAT.model.klass(null, {
 
 });
 
+HICHAT.model.Friend = HICHAT.model.klass(null, {
+	__construct: function(oArgs) {
+		this.vCard = oArgs.vCard;
+		this.groups = oArgs.groups;
+	},
+	getVCard: function() {
+		return this.vCard;
+	},
+	setVCard: function(vCard) {
+		this.vCard = vCard;
+	},
+	getGroups: function() {
+		return this.groups;
+	},
+	setGroups: function(groups) {
+		this.groups = groups;
+	}
+});
+
 HICHAT.model.VCard = HICHAT.model.klass(HICHAT.model.SimpleUser, {
 	__construct: function(oArgs) {
 		this.nickname = oArgs.nickname;
@@ -101,6 +120,7 @@ HICHAT.model.VCard = HICHAT.model.klass(HICHAT.model.SimpleUser, {
 		this.email = oArgs.email;
 		this.telephone = oArgs.tele;
 		this.description = oArgs.desc;
+		this.headPortrait = oArgs.headPortrait;
 	},
 	setNickname: function(nickname) {
 		this.nickname = nickname;
@@ -144,6 +164,12 @@ HICHAT.model.VCard = HICHAT.model.klass(HICHAT.model.SimpleUser, {
 	getDescription: function() {
 		return this.description;
 	},
+	setHeadPortrait: function(headPortrait) {
+		this.headPortrait = headPortrait;
+	},
+	getHeadPortrait: function() {
+		return this.headPortrait;
+	},
 	toSimpleUser: function() {
 		return new HICHAT.model.SimpleUser({
 			jid: this.jid,
@@ -156,7 +182,7 @@ HICHAT.model.VCard = HICHAT.model.klass(HICHAT.model.SimpleUser, {
 HICHAT.model.Room = HICHAT.model.klass(null, {
 	__construct: function(oArgs) {
 		if (typeof oArgs === 'string') {
-			var result = /([\w-]+)@([\w-]+)\.([\w-]+)/.exec(oArgs);
+			var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-]+)/.exec(oArgs);
 			this.roomId = result[1];
 			this.groupChatResource = result[2];
 			this.domain = result[3];
@@ -187,7 +213,7 @@ HICHAT.model.Room = HICHAT.model.klass(null, {
 		this.curUsers = {};
 	},
 	setJidFromString: function(roomJid) {
-		var result = /([\w-]+)@([\w-]+)\.([\w-]+)/.exec(roomJid);
+		var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-]+)/.exec(roomJid);
 		this.roomId = result[1];
 		this.groupChatResource = result[2];
 		this.domain = result[3];
@@ -233,48 +259,10 @@ HICHAT.model.Room = HICHAT.model.klass(null, {
 	}
 });
 
-/*
-<feature var='http://jabber.org/protocol/muc'/>
-    <feature var='muc_passwordprotected'/>
-    <feature var='muc_hidden'/>
-    <feature var='muc_temporary'/>
-    <feature var='muc_open'/>
-    <feature var='muc_unmoderated'/>
-    <feature var='muc_nonanonymous'/>
-    <x xmlns='jabber:x:data' type='result'>
-      <field var='FORM_TYPE' type='hidden'>
-        <value>http://jabber.org/protocol/muc#roominfo</value>
-      </field>
-      <field var='muc#roominfo_description' label='Description'>
-        <value>The place for all good witches!</value>
-      </field>
-      <field var='muc#roominfo_changesubject' label='Whether Occupants May Change the Subject'>
-        <value>true</value>
-      </field>
-      <field var='muc#roominfo_contactjid' label='Contact Addresses'>
-        <value>crone1@shakespeare.lit</value>
-      </field>
-      <field var='muc#roominfo_subject' label='Subject'>
-        <value>Spells</value>
-      </field>
-      <field var='muc#roominfo_occupants' label='Number of occupants'>
-        <value>3</value>
-      </field>
-      <field var='muc#roominfo_lang' label='Language of discussion'>
-        <value>en</value>
-      </field>
-      <field var='muc#roominfo_logs' label='URL for discussion logs'>
-        <value>http://www.shakespeare.lit/chatlogs/darkcave/</value>
-      </field>
-      <field var='muc#roominfo_pubsub' label='Associated pubsub node'>
-        <value>xmpp:pubsub.shakespeare.lit?node=chatrooms/darkcave</value>
-      </field>
-    </x>
-*/
 HICHAT.model.RoomInfo = HICHAT.model.klass(HICHAT.model.Room, {
 	__construct: function(oArgs) {
 		if (typeof oArgs.roomJid === 'string') {
-			var result = /([\w-]+)@([\w-]+)\.([\w-]+)/.exec(oArgs.roomJid);
+			var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-]+)/.exec(oArgs.roomJid);
 			this.roomId = result[1];
 			this.groupChatResource = result[2];
 			this.domain = result[3];
@@ -311,7 +299,7 @@ HICHAT.model.RoomInfo = HICHAT.model.klass(HICHAT.model.Room, {
 HICHAT.model.RoomUser = HICHAT.model.klass(null, {
 	__construct: function(oArgs) {
 		if (typeof oArgs === 'string') {
-			var result = /([\w-]+)@([\w-]+)\.([\w-]+)(?:\/([A-Za-z\u00C0-\u1FFF\u2800-\uFFFD-]+))/.exec(oArgs);
+			var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-]+)(?:\/([A-Za-z\u00C0-\u1FFF\u2800-\uFFFD-]+))/.exec(oArgs);
 			this.room = new HICHAT.model.Room({
 				roomId: result[1],
 				groupChatResource: result[2],
@@ -409,7 +397,84 @@ HICHAT.model.RoomConfig = HICHAT.model.klass(null, {
 	toString: function() {
 		return this.roomId + "@" + this.groupChatResource + "." + this.domain;
 	},
-	getAllValue : function(){
+	getAllValue: function() {
 		return this;
+	}
+});
+
+HICHAT.model.HeadPortrait = HICHAT.model.klass(null, {
+	__construct: function(oArgs) {
+		this.type = oArgs.type;
+		this.binval = oArgs.binval;
+	},
+	setType: function(type) {
+		this.type = type;
+	},
+	getType: function() {
+		return this.type;
+	},
+	setBinval: function(binval) {
+		this.binval = binval;
+	},
+	getBinval: function() {
+		return this.binval;
+	},
+	toHtmlString: function() {
+		return 'data:' + this.type + ';base64,' + this.binval;
+	},
+	isExist: function() {
+		return (Boolean(this.binval) === true);
+	}
+});
+
+HICHAT.model.Message = HICHAT.model.klass(null, {
+	__construct: function(oArgs){
+		this.user = oArgs.user;
+		this.message = oArgs.message;
+		this.time = oArgs.time;
+	},
+	getUser:function(){
+		return this.user;
+	},
+	setUser:function(user){
+		this.user = user;
+	},
+	getMessage: function(){
+		return this.message;
+	},
+	setMessage: function(message){
+		this.message = message;
+	},
+	getTime:function(){
+		return this.time;
+	},
+	setTime:function(time){
+		this.time = time;
+	}
+});
+
+HICHAT.model.GroupMessage = HICHAT.model.klass(null, {
+	__construct: function(oArgs){
+		this.groupUser = oArgs.groupUser;
+		this.message = oArgs.message;
+		this.time = oArgs.time;
+	},
+	getGroupUser:function(){
+		return this.groupUser;
+	},
+	setGroupUser:function(groupUser){
+		this.groupUser = groupUser;
+	},
+	getMessage: function(){
+		return this.message;
+	},
+	setMessage: function(message){
+		this.message = message;
+	},
+	getTime:function(){
+		return this.time;
+	},
+	setTime:function(time){
+		this.time = time;
 	}
 });
