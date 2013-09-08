@@ -33,6 +33,7 @@ HICHAT.viewer = (function($, window) {
 		findRoomDialog = $("#findRoomDialog"),
 		joinRoomDialog = $("#joinRoomDialog"),
 		outcastDialog = $("#outcastDialog"),
+		rosterVCardDialog = $("#rosterVCardDialog"),
 		registerDialog = $("#registerDialog"),
 		rosterGroupDialog = $("#rosterGroupDialog"),
 		groupUserContextMenu = $("#groupUserContextMenu"),
@@ -479,33 +480,6 @@ HICHAT.viewer = (function($, window) {
 			delete privacyChatPanels[index].tab;
 			delete privacyChatPanels[index].content;
 			delete privacyChatPanels[index];
-		},
-		__createVCardDialog = function(vCard) {
-			var divNode = $("<div class='vCardPanel dialog'></div>"),
-				tableNode = $("<table><thead><tr><th width=100></th><th></th></tr></thead><tbody></tbody></table>"),
-				index = vCard.toString();
-			if (typeof vCardPanels[index] === "undefined") {
-				$("tbody", tableNode)
-					.append("<tr><td>JID</td><td>" + index + "</td></tr>" +
-					"<tr><td>昵称</td><td>" + vCard.getNickname() + "</td></tr>" +
-					"<tr><td>性别</td><td>" + vCard.getSex() + "</td></tr>" +
-					"<tr><td>生日</td><td>" + vCard.getBirthday() + "</td></tr>" +
-					"<tr><td>邮箱</td><td>" + vCard.getEmail() + "</td></tr>" +
-					"<tr><td>手机</td><td>" + vCard.getTelephone() + "</td></tr>" +
-					"<tr><td>自我描述</td><td>" + vCard.getDescription() + "</td></tr>");
-				vCardPanels[index] = divNode.append(tableNode).dialog({
-					autoOpen: false,
-					closeOnEscape: true,
-					draggable: true,
-					resizable: false,
-					modal: false,
-					title: vCard.getNickname() + "的名片",
-					width: 400,
-					show: "fade",
-					hide: "fade"
-				});
-			}
-			vCardPanels[index].dialog("open");
 		},
 		__drawRoster = function(friend) {
 			var divNode,
@@ -1053,7 +1027,9 @@ HICHAT.viewer = (function($, window) {
 				eventProcessor.triggerEvent("service_roster_sendUnsubscribe", [rosterContextMenu.data("vCard")]);
 			});
 			$("li[value='info']", rosterContextMenu).bind("click", function(event) {
-				__createVCardDialog(rosterContextMenu.data("vCard"));
+				rosterVCardDialog.data("vCard", rosterContextMenu.data("vCard"));
+				rosterVCardDialog.dialog("close");
+				rosterVCardDialog.dialog("open");
 			});
 			$("li[value='chat']", rosterContextMenu).bind("click", function(event) {
 				var vCard = rosterContextMenu.data("vCard");
@@ -1184,6 +1160,42 @@ HICHAT.viewer = (function($, window) {
 			var clientHeight = document.body.clientHeight;
 			rosterTb.css("height", clientHeight - 300 + "px");
 		},
+		/*<!-- "<tr><td>JID</td><td>" + index + "</td></tr>" +
+          "<tr><td>昵称</td><td>" + vCard.getNickname() + "</td></tr>" +
+          "<tr><td>性别</td><td>" + vCard.getSex() + "</td></tr>" +
+          "<tr><td>生日</td><td>" + vCard.getBirthday() + "</td></tr>" +
+          "<tr><td>邮箱</td><td>" + vCard.getEmail() + "</td></tr>" +
+          "<tr><td>手机</td><td>" + vCard.getTelephone() + "</td></tr>" +
+          "<tr><td>自我描述</td><td>" + vCard.getDescription() + "</td></tr>" -->*/
+		__initRosterVCardDialog = function() {
+			rosterVCardDialog.dialog({
+				autoOpen: false,
+				closeOnEscape: true,
+				draggable: true,
+				resizable: false,
+				modal: false,
+				width: 400,
+				show: "fade",
+				hide: "fade",
+				open : function(event, ui){
+					var that = $(this),
+						vCard = that.data("vCard"),
+						tbody = $("table tbody", rosterVCardDialog);
+					$("td[name='jid']", tbody).text(vCard.toString());
+					$("td[name='nickname']", tbody).text(vCard.getNickname());
+					$("td[name='sex']", tbody).text(vCard.getSex());
+					$("td[name='birthday']", tbody).text(vCard.getBirthday());
+					$("td[name='email']", tbody).text(vCard.getEmail());
+					$("td[name='telephone']", tbody).text(vCard.getTelephone());
+					$("td[name='desc']", tbody).text(vCard.getDescription());
+					if(vCard.getNickname()){
+						rosterVCardDialog.dialog("option","title",vCard.getNickname() + "的个人信息");
+					} else {
+						rosterVCardDialog.dialog("option","title",vCard.toString()  + "的个人信息");
+					}
+				}
+			});
+		},
 		__noticeError = function(msg) {
 			alertify.error(msg);
 		},
@@ -1226,6 +1238,7 @@ HICHAT.viewer = (function($, window) {
 		__initRosterContextMenu();
 		__initRosterGroupDialog();
 		__initChangeGroupMenu();
+		__initRosterVCardDialog();
 	}());
 
 	eventProcessor.bindEvent({
@@ -1383,6 +1396,7 @@ HICHAT.viewer = (function($, window) {
 		},
 		viewer_drawRoomChatTab: function(event, room) {
 			__drawRoomChatTab(room);
+			eventProcessor.triggerEvent("connector_groupChat_addBookmark",[room.toString(), room, selfVCard.getNickname(), false]);
 		},
 		viewer_deleteRoomChatTab: function(event, room) {
 			__destoryRoomChatTab(room);
