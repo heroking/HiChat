@@ -112,77 +112,10 @@ HICHAT.model.Friend = HICHAT.model.klass(null, {
 	}
 });
 
-HICHAT.model.VCard = HICHAT.model.klass(HICHAT.model.SimpleUser, {
-	__construct: function(oArgs) {
-		this.nickname = oArgs.nickname;
-		this.sex = oArgs.sex;
-		this.birthday = oArgs.bday;
-		this.email = oArgs.email;
-		this.telephone = oArgs.tele;
-		this.description = oArgs.desc;
-		this.headPortrait = oArgs.headPortrait;
-	},
-	setNickname: function(nickname) {
-		this.nickname = nickname;
-		return this;
-	},
-	getNickname: function() {
-		return this.nickname;
-	},
-	setSex: function(sex) {
-		this.sex = sex;
-		return this;
-	},
-	getSex: function() {
-		return this.sex;
-	},
-	setBirthday: function(birthday) {
-		this.birthday = birthday;
-		return this;
-	},
-	getBirthday: function() {
-		return this.birthday;
-	},
-	setEmail: function(email) {
-		this.email = email;
-		return this;
-	},
-	getEmail: function() {
-		return this.email;
-	},
-	setTelephone: function(telephone) {
-		this.telephone = telephone;
-		return this;
-	},
-	getTelephone: function() {
-		return this.telephone;
-	},
-	setDescription: function(description) {
-		this.description = description;
-		return this;
-	},
-	getDescription: function() {
-		return this.description;
-	},
-	setHeadPortrait: function(headPortrait) {
-		this.headPortrait = headPortrait;
-	},
-	getHeadPortrait: function() {
-		return this.headPortrait;
-	},
-	toSimpleUser: function() {
-		return new HICHAT.model.SimpleUser({
-			jid: this.jid,
-			domain: this.domain,
-			resource: this.resource
-		});
-	}
-});
-
 HICHAT.model.Room = HICHAT.model.klass(null, {
 	__construct: function(oArgs) {
 		if (typeof oArgs === 'string') {
-			var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-]+)/.exec(oArgs);
+			var result = /([\w\-\u4e00-\u9fa5]+)@([\w\-]+)\.([\w-.]+)/.exec(oArgs);
 			this.roomId = result[1];
 			this.groupChatResource = result[2];
 			this.domain = result[3];
@@ -210,10 +143,12 @@ HICHAT.model.Room = HICHAT.model.klass(null, {
 		this.logs = oArgs.logs;
 		this.pubsub = oArgs.pubsub;
 
-		this.curUsers = {};
+		if (typeof oArgs.curUsers !== "object") {
+			this.curUsers = {};
+		}
 	},
 	setJidFromString: function(roomJid) {
-		var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-]+)/.exec(roomJid);
+		var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w\-.]+)/.exec(roomJid);
 		this.roomId = result[1];
 		this.groupChatResource = result[2];
 		this.domain = result[3];
@@ -248,8 +183,8 @@ HICHAT.model.Room = HICHAT.model.klass(null, {
 	getCurUsers: function() {
 		return this.curUsers;
 	},
-	setCurUsers: function(curUserList) {
-		this.curUsers = curUserList;
+	setCurUsers: function(curUsers) {
+		this.curUsers = curUsers;
 	},
 	getAttribute: function(attrName) {
 		return this[attrName];
@@ -262,7 +197,7 @@ HICHAT.model.Room = HICHAT.model.klass(null, {
 HICHAT.model.RoomInfo = HICHAT.model.klass(HICHAT.model.Room, {
 	__construct: function(oArgs) {
 		if (typeof oArgs.roomJid === 'string') {
-			var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-]+)/.exec(oArgs.roomJid);
+			var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-.]+)/.exec(oArgs.roomJid);
 			this.roomId = result[1];
 			this.groupChatResource = result[2];
 			this.domain = result[3];
@@ -299,7 +234,7 @@ HICHAT.model.RoomInfo = HICHAT.model.klass(HICHAT.model.Room, {
 HICHAT.model.RoomUser = HICHAT.model.klass(null, {
 	__construct: function(oArgs) {
 		if (typeof oArgs === 'string') {
-			var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-]+)(?:\/([A-Za-z\u00C0-\u1FFF\u2800-\uFFFD-]+))/.exec(oArgs);
+			var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-.]+)(?:\/([A-Za-z\u00C0-\u1FFF\u2800-\uFFFD-]+))/.exec(oArgs);
 			this.room = new HICHAT.model.Room({
 				roomId: result[1],
 				groupChatResource: result[2],
@@ -427,54 +362,296 @@ HICHAT.model.HeadPortrait = HICHAT.model.klass(null, {
 	}
 });
 
+HICHAT.model.ChatState = HICHAT.model.klass(null, {
+	__construct: function(oArgs) {
+		this.uer = oArgs.user;
+		this.state = oArgs.state;
+	},
+	getUser: function() {
+		return this.user;
+	},
+	setUser: function(user) {
+		this.user = user;
+	},
+	getState: function() {
+		return this.state;
+	},
+	setState: function(state) {
+		this.state = state;
+	}
+});
+
 HICHAT.model.Message = HICHAT.model.klass(null, {
-	__construct: function(oArgs){
+	__construct: function(oArgs) {
 		this.user = oArgs.user;
 		this.message = oArgs.message;
 		this.time = oArgs.time;
 	},
-	getUser:function(){
+	getUser: function() {
 		return this.user;
 	},
-	setUser:function(user){
+	setUser: function(user) {
 		this.user = user;
 	},
-	getMessage: function(){
+	getMessage: function() {
 		return this.message;
 	},
-	setMessage: function(message){
+	setMessage: function(message) {
 		this.message = message;
 	},
-	getTime:function(){
+	getTime: function() {
 		return this.time;
 	},
-	setTime:function(time){
+	setTime: function(time) {
 		this.time = time;
 	}
 });
 
 HICHAT.model.GroupMessage = HICHAT.model.klass(null, {
-	__construct: function(oArgs){
+	__construct: function(oArgs) {
 		this.groupUser = oArgs.groupUser;
 		this.message = oArgs.message;
 		this.time = oArgs.time;
 	},
-	getGroupUser:function(){
+	getGroupUser: function() {
 		return this.groupUser;
 	},
-	setGroupUser:function(groupUser){
+	setGroupUser: function(groupUser) {
 		this.groupUser = groupUser;
 	},
-	getMessage: function(){
+	getMessage: function() {
 		return this.message;
 	},
-	setMessage: function(message){
+	setMessage: function(message) {
 		this.message = message;
 	},
-	getTime:function(){
+	getTime: function() {
 		return this.time;
 	},
-	setTime:function(time){
+	setTime: function(time) {
 		this.time = time;
+	}
+});
+
+HICHAT.model.Bookmark = HICHAT.model.klass(null, {
+	__construct: function(oArgs) {
+		this.nickname = oArgs.nickname;
+		this.roomJid = oArgs.roomJid;
+		this.tag = oArgs.tag;
+		this.autojoin = oArgs.autojoin;
+	},
+	getNickname: function() {
+		return this.nickname;
+	},
+	setNickname: function(nickname) {
+		this.nickname = nickname;
+	},
+	getRoomJid: function() {
+		return this.roomJid;
+	},
+	setRoomJid: function(roomJid) {
+		this.roomJid = roomJid;
+	},
+	getTag: function() {
+		return this.tag;
+	},
+	setTag: function(tag) {
+		this.tag = tag;
+	},
+	isAutojoin: function() {
+		return this.autojoin;
+	},
+	setAutojoin: function(autojoin) {
+		this.autojoin = autojoin;
+	}
+});
+
+HICHAT.model.PersonalInfo = HICHAT.model.klass(null, {
+	__construct: function(oArgs) {
+		this.name = oArgs.name;
+		this.middleName = oArgs.middleName;
+		this.familyName = oArgs.familyName;
+		this.nickname = oArgs.nickname;
+		this.email = oArgs.email;
+	},
+	getName: function() {
+		return this.name;
+	},
+	getMiddleName: function() {
+		return this.middleName;
+	},
+	getFamilyName: function() {
+		return this.familyName;
+	},
+	getNickname: function() {
+		return this.nickname;
+	},
+	getEmail: function() {
+		return this.email;
+	},
+	setName: function(name) {
+		this.name = name;
+	},
+	setMiddleName: function(middleName) {
+		this.middleName = middleName;
+	},
+	setFamilyName: function(familyName) {
+		this.familyName = familyName;
+	},
+	setNickname: function(nickname) {
+		this.nickname = nickname;
+	},
+	setEmail: function(email) {
+		this.email = email;
+	}
+});
+
+HICHAT.model.AddressInfo = HICHAT.model.klass(null, {
+	__construct: function(oArgs) {
+		this.street = oArgs.street;
+		this.city = oArgs.city;
+		this.province = oArgs.province;
+		this.postCode = oArgs.postCode;
+		this.country = oArgs.country;
+		this.phone = oArgs.phone;
+		this.fax = oArgs.fax;
+		this.bleeper = oArgs.bleeper;
+		this.telephone = oArgs.telephone;
+	},
+	getStreet: function() {
+		return this.street;
+	},
+	getCity: function() {
+		return this.city;
+	},
+	getProvince: function() {
+		return this.province;
+	},
+	getPostCode: function() {
+		return this.postCode;
+	},
+	getCountry: function() {
+		return this.country;
+	},
+	getPhone: function() {
+		return this.phone;
+	},
+	getFax: function() {
+		return this.fax;
+	},
+	getBleeper: function() {
+		return this.bleeper;
+	},
+	getTelephone: function() {
+		return this.telephone;
+	},
+	setStreet: function(street) {
+		this.street = street;
+	},
+	setCity: function(city) {
+		this.city = city;
+	},
+	setProvince: function(province) {
+		this.province = province;
+	},
+	setPostCode: function(postCode) {
+		this.postCode = postCode;
+	},
+	setCountry: function(country) {
+		this.country = country;
+	},
+	setPhone: function(phone) {
+		this.phone = phone;
+	},
+	setFax: function(fax) {
+		this.fax = fax;
+	},
+	setBleeper: function(bleeper) {
+		this.bleeper = bleeper;
+	},
+	setTelephone: function(telephone) {
+		this.telephone = telephone;
+	}
+});
+
+HICHAT.model.WorkInfo = HICHAT.model.klass(HICHAT.model.AddressInfo, {
+	__construct: function(oArgs) {
+		this.company = oArgs.company;
+		this.title = oArgs.title;
+		this.department = oArgs.department;
+		this.webSite = oArgs.webSite;
+	},
+	getCompany: function() {
+		return this.company;
+	},
+	getTitle: function() {
+		return this.title;
+	},
+	getDepartment: function() {
+		return this.department;
+	},
+	getWebSite: function() {
+		return this.webSite;
+	},
+	setCompany: function(company) {
+		this.company = company;
+	},
+	setTitle: function(title) {
+		this.title = title;
+	},
+	setDepartment: function(department) {
+		this.department = department;
+	},
+	setWebSite: function(webSite) {
+		this.webSite = webSite;
+	}
+});
+
+HICHAT.model.HomeInfo = HICHAT.model.klass(HICHAT.model.AddressInfo, {
+	__construct: function(oArgs) {}
+});
+
+HICHAT.model.VCard = HICHAT.model.klass(HICHAT.model.SimpleUser, {
+	__construct: function(oArgs) {
+		this.homeInfo = oArgs.homeInfo;
+		this.workInfo = oArgs.workInfo;
+		this.personalInfo = oArgs.personalInfo;
+		this.headPortrait = oArgs.headPortrait;
+	},
+	getHomeInfo: function() {
+		return this.homeInfo;
+	},
+	getWorkInfo: function() {
+		return this.workInfo;
+	},
+	getPersonalInfo: function() {
+		return this.personalInfo;
+	},
+	getHeadPortrait: function() {
+		return this.headPortrait;
+	},
+	setHomeInfo: function(homeInfo) {
+		this.homeInfo = homeInfo;
+	},
+	setWorkInfo: function(workInfo) {
+		this.workInfo = workInfo;
+	},
+	setPersonalInfo: function(personalInfo) {
+		this.personalInfo = personalInfo;
+	},
+	setHeadPortrait: function(headPortrait) {
+		this.headPortrait = headPortrait;
+	},
+	hasHeadPortrait: function() {
+		if (typeof this.headPortrait === "undefined") {
+			return false;
+		}
+		return this.headPortrait.isExist();
+	},
+	toSimpleUser: function() {
+		return new HICHAT.model.SimpleUser({
+			jid: this.jid,
+			domain: this.domain
+		});
 	}
 });

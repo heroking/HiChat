@@ -3,17 +3,16 @@ HICHAT.service = (function($, window) {
 	var eventProcessor = HICHAT.utils.eventProcessor,
 		Friend = HICHAT.model.Friend,
 		VCard = HICHAT.model.VCard,
+		Room = HICHAT.model.Room,
+		RoomUser = HICHAT.model.RoomUser,
 		viewer = null,
 		rosterModule = (function() {
-			var friends = {};
 			eventProcessor.bindEvent({
 				service_roster_getOtherVCard: function(event, user) {
-					eventProcessor.triggerEvent("connector_vCard_getOtherVCard", [user]);
+					eventProcessor.triggerEvent("connector_vCard_getOtherVCard", ["service_roster_getedOtherVCard", user]);
 				},
 				service_roster_getedOtherVCard: function(event, vCard) {
-					var index = vCard.toString();
 					eventProcessor.triggerEvent("viewer_drawRosterDetail", [vCard]);
-					friends[index] = vCard;
 				},
 				service_roster_rosterRequested: function(event, friends) {
 					var i;
@@ -83,7 +82,6 @@ HICHAT.service = (function($, window) {
 		}()),
 
 		selfControlModule = (function() {
-			var vCard;
 			eventProcessor.bindEvent({
 				service_selfControl_logouted: function(event) {
 					eventProcessor.triggerEvent("viewer_logouted", []);
@@ -95,8 +93,9 @@ HICHAT.service = (function($, window) {
 						eventProcessor.triggerEvent("viewer_logouted", []);
 						eventProcessor.triggerEvent("viewer_noticeError", ["登录失败"]);
 					}
-					eventProcessor.triggerEvent("connector_vCard_getMyVCard");
+					eventProcessor.triggerEvent("connector_vCard_getMyVCard", ["service_selfControl_getedMyVCard"]);
 					eventProcessor.triggerEvent("connector_privacyChat_rosterRequest");
+					eventProcessor.triggerEvent("connector_groupChat_getBookmarks", ["service_groupChat_getedBookmarksAfterLogin"]);
 				},
 				service_selfControl_getedMyVCard: function(event, vCard) {
 					if (typeof vCard === 'undefined') {
@@ -106,7 +105,7 @@ HICHAT.service = (function($, window) {
 					}
 				},
 				service_selfControl_getMyVCard: function(event) {
-					eventProcessor.triggerEvent("connector_vCard_getMyVCard");
+					eventProcessor.triggerEvent("connector_vCard_getMyVCard", ["service_selfControl_getedMyVCard"]);
 				},
 				service_selfControl_updateMyVCard: function(evnet, vCard) {
 					eventProcessor.triggerEvent("connector_vCard_updateMyVCard", [vCard]);
@@ -117,7 +116,7 @@ HICHAT.service = (function($, window) {
 					} else {
 						eventProcessor.triggerEvent("viewer_noticeError", ["发生错误：更新个人信息失败"]);
 					}
-					eventProcessor.triggerEvent("connector_vCard_getMyVCard");
+					eventProcessor.triggerEvent("connector_vCard_getMyVCard", ["service_selfControl_getedMyVCard"]);
 				},
 				service_selfControl_login: function(event, username, password) {
 					eventProcessor.triggerEvent("connector_basic_login", [username, password]);
@@ -131,7 +130,6 @@ HICHAT.service = (function($, window) {
 				service_selfControl_register: function(event, username, password) {
 					eventProcessor.triggerEvent("connector_basic_register", [username, password]);
 				}
-
 			});
 		}()),
 
@@ -156,15 +154,30 @@ HICHAT.service = (function($, window) {
 					delete rooms[roomJid];
 				},
 				__getRoomUser = function(userJid, roomJid) {
-					return rooms[roomJid].roomInfo.getCurUsers()[userJid];
+					var curUsers = rooms[roomJid].curUsers;
+					return curUsers[userJid];
 				},
 				__getRoomSelf = function(roomJid) {
 					return rooms[roomJid].selfUser;
 				},
 				__setRoomUser = function(roomUser) {
-					rooms[roomUser.toRoomString()].roomInfo.getCurUsers()[roomUser.toString()] = roomUser;
+					var curUsers;
+					if (typeof rooms[roomUser.toRoomString()] === "undefined") {
+						rooms[roomUser.toRoomString()] = {
+							curUsers: {},
+							roomInfo: roomUser.getRoom()
+						};
+					}
+					curUsers = rooms[roomUser.toRoomString()].curUsers;
+					curUsers[roomUser.toString()] = roomUser;
 				},
 				__setRoomSelf = function(roomUser) {
+					if (typeof rooms[roomUser.toRoomString()] === "undefined") {
+						rooms[roomUser.toRoomString()] = {
+							curUsers: {},
+							roomInfo: roomUser.getRoom()
+						};
+					}
 					rooms[roomUser.toRoomString()].selfUser = roomUser;
 				},
 				__refreshRoomUserList = function(roomJid) {
@@ -216,17 +229,25 @@ HICHAT.service = (function($, window) {
 					__deleteRoomInfo(roomJid);
 				},
 				service_groupChat_joinRoom: function(event, roomUser, password) {
-					rooms[roomUser.toRoomString()].selfUser = roomUser;
 					eventProcessor.triggerEvent("connector_groupChat_joinRoom", [roomUser, password]);
 				},
 				service_groupChat_joinedRoom: function(event, roomUser) {
+					var userJid,
+						curUsers;
+					if (typeof rooms[roomUser.toRoomString()] === 'undefined') {
+						rooms[roomUser.toRoomString()] = {
+							roomInfo: roomUser.getRoom(),
+							curUsers: {}
+						};
+					}
+					rooms[roomUser.toRoomString()].roomInfo = roomUser.getRoom();
+					__setRoomUser(roomUser);
 					eventProcessor.triggerEvent("viewer_noticeSuccess", ["加入房间 " + roomUser.getRoom().getRoomName() + " 成功！"]);
-					rooms[roomUser.toRoomString()].self = roomUser;
-					rooms[roomUser.toRoomString()].roomInfo.getCurUsers()[roomUser.toString()] = roomUser;
-					eventProcessor.triggerEvent("viewer_drawRoomChatTab", [roomUser.getRoom()]);
+					rooms[roomUser.toRoomString()].selfUser = roomUser;
+					eventProcessor.triggerEvent("viewer_drawRoomChatTab", [roomUser, rooms[roomUser.toRoomString()].curUsers]);
 				},
 				service_groupChat_listRoom: function(event, groupChatService, domain) {
-					eventProcessor.triggerEvent("connector_groupChat_listRoom");
+					eventProcessor.triggerEvent("connector_groupChat_listRoom", ["service_groupChat_listedRoom"]);
 				},
 				service_groupChat_listedRoom: function(event, roomList) {
 					var i;
@@ -234,12 +255,19 @@ HICHAT.service = (function($, window) {
 					eventProcessor.triggerEvent("viewer_listRoom", [roomList]);
 					for (i = roomList.length; i--;) {
 						rooms[roomList[i].toString()] = {
-							roomInfo: roomList[i]
+							roomInfo: roomList[i],
+							curUsers: {}
 						};
-						eventProcessor.triggerEvent("connector_groupChat_getRoomInfo", [roomList[i]]);
+						eventProcessor.triggerEvent("connector_groupChat_getRoomInfo", ["service_groupChat_getedRoomInfo", roomList[i]]);
 					}
 				},
 				service_groupChat_getedRoomInfo: function(event, room) {
+					if (typeof rooms[room.toString()] === "undefined") {
+						rooms[room.toString()] = {
+							roomInfo: room,
+							curUsers: {}
+						};
+					}
 					rooms[room.toString()].roomInfo = room;
 					eventProcessor.triggerEvent("viewer_drawRoomDetail", [room]);
 				},
@@ -259,27 +287,25 @@ HICHAT.service = (function($, window) {
 						__setRoomUser(roomUser);
 						if (roomUser.toString() === __getRoomSelf.toString()) {
 							__setRoomSelf(roomUser);
-							users = __getRoomInfo(roomUser.toRoomString()).getCurUsers();
+							users = rooms[roomUser.toRoomString()].curUsers;
 							for (userJid in users) {
 								if (Object.prototype.hasOwnProperty.apply(users, [userJid])) {
 									eventProcessor.triggerEvent("viewer_drawRoomUser", [users[userJid]]);
 								}
 							}
-							return;
+						} else {
+							eventProcessor.triggerEvent("viewer_drawRoomUser", [roomUser]);
 						}
-						eventProcessor.triggerEvent("viewer_drawRoomUser", [roomUser]);
 					} catch (e) {
-						console.log(e);
+						console.dir(e);
 					}
 				},
 				service_groupChat_userLeaveRoom: function(event, roomUser) {
-					console.log(roomUser.toString());
-					console.log(__getRoomSelf(roomUser.getRoom().toString()).toString());
 					if (roomUser.toString() === __getRoomSelf(roomUser.getRoom().toString()).toString()) {
 						eventProcessor.triggerEvent("viewer_deleteRoomChatTab", [roomUser.getRoom()]);
 						__deleteRoomInfo(roomUser.getRoom().toString());
 					} else {
-						delete __getRoomInfo(roomUser.toRoomString()).getCurUsers()[roomUser.toString()];
+						delete (rooms[roomUser.toRoomString()].curUsers)[roomUser.toString()];
 						eventProcessor.triggerEvent("viewer_deleteRoomUser", [roomUser]);
 					}
 				},
@@ -328,7 +354,7 @@ HICHAT.service = (function($, window) {
 					__setUserAffiliation(userJid, roomJid, "none");
 				},
 				service_groupChat_getOutcastList: function(event, roomJid) {
-					eventProcessor.triggerEvent("connector_groupChat_getOutcastList", [__getRoomInfo(roomJid)]);
+					eventProcessor.triggerEvent("connector_groupChat_getOutcastList", ["service_groupChat_getedOutcastList", __getRoomInfo(roomJid)]);
 				},
 				service_groupChat_getedOutcastList: function(event, outcastUserList, roomJid) {
 					eventProcessor.triggerEvent("viewer_drawOutcastList", [outcastUserList, __getRoomInfo(roomJid)]);
@@ -340,7 +366,7 @@ HICHAT.service = (function($, window) {
 					eventProcessor.triggerEvent("viewer_removeOutcast", [userJid, roomJid]);
 				},
 				service_groupChat_getOldNick: function(event, roomJid) {
-					eventProcessor.triggerEvent("connector_groupChat_getOldNickInRoom", [__getRoomInfo(roomJid)]);
+					eventProcessor.triggerEvent("connector_groupChat_getOldNickInRoom", ["service_groupChat_getedOldNick", __getRoomInfo(roomJid)]);
 				},
 				service_groupChat_getedOldNick: function(event, roomJid, oldNick) {
 					eventProcessor.triggerEvent("viewer_setOldNick", [__getRoomInfo(roomJid), oldNick]);
@@ -358,21 +384,53 @@ HICHAT.service = (function($, window) {
 					eventProcessor.triggerEvent("viewer_deleteRoomUser", [user]);
 					user.setNickname(newNickname);
 					eventProcessor.triggerEvent("viewer_drawRoomUser", [user]);
+				},
+				service_groupChat_addBookmark: function(event, bookmark) {
+					var roomInfo = __getRoomInfo(bookmark.getRoomJid());
+					if (roomInfo.getAttribute("passwordprotected")) {
+						eventProcessor.triggerEvent("viewer_addedBookmarkFailed", ["密码保护房间禁止添加书签"]);
+					} else {
+						eventProcessor.triggerEvent("connector_groupChat_addBookmark", [bookmark]);
+					}
+				},
+				service_groupChat_addedBookmark: function(event) {
+					eventProcessor.triggerEvent("viewer_addedBookmark");
+				},
+				service_groupChat_addedBookmarkFailed: function(event, reason) {
+					eventProcessor.triggerEvent("viewer_addedBookmarkFailed", [reason]);
+				},
+				service_groupChat_getBookmarks: function(event) {
+					eventProcessor.triggerEvent("connector_groupChat_getBookmarks", ["service_groupChat_getedBookmarks"]);
+				},
+				service_groupChat_getedBookmarks: function(event, bookmarks) {
+					eventProcessor.triggerEvent("viewer_getedBookmarks", [bookmarks]);
+				},
+				service_groupChat_deleteBookmark: function(event, roomJid) {
+					eventProcessor.triggerEvent("connector_groupChat_deleteBookmark", [roomJid]);
+				},
+				service_groupChat_deletedBookmark: function(event) {
+					eventProcessor.triggerEvent("viewer_deletedBookmark");
+				},
+				service_groupChat_updateBookmark: function(event, bookmark) {
+					eventProcessor.triggerEvent("connector_groupChat_updateBookmark", [bookmark]);
+				},
+				service_groupChat_updatedBookmark: function(event, bookmark) {
+					eventProcessor.triggerEvent("viewer_updatedBookmark", [bookmark]);
+				},
+				service_groupChat_getedBookmarksAfterLogin: function(event, bookmarks) {
+					var i,
+						roomUser;
+					for (i = bookmarks.length; i--;) {
+						if (bookmarks[i].isAutojoin()) {
+							roomUser = new RoomUser({
+								room: new Room(bookmarks[i].getRoomJid()),
+								nickname: bookmarks[i].getNickname()
+							});
+							eventProcessor.triggerEvent("connector_groupChat_joinRoom", [roomUser]);
+						}
+					}
 				}
 			});
-
-			return {
-				getSelfInRoom: function(roomJid) {
-					return rooms[roomJid].selfUser;
-				},
-				getRoomInfo: function(roomJid) {
-					return rooms[roomJid].roomInfo;
-				}
-			};
-		}()),
-
-		registerModule = (function() {
-			return {};
 		}());
 
 	eventProcessor.bindEvent({
@@ -385,9 +443,6 @@ HICHAT.service = (function($, window) {
 	});
 
 	return {
-		getSelfInRoom: groupChatModule.getSelfInRoom,
-		getRoomInfo: groupChatModule.getRoomInfo,
-
 		bindModules: function(oArgs) {
 			viewer = oArgs.viewer;
 		}

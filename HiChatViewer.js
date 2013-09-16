@@ -1,16 +1,23 @@
 HICHAT.namespace("HICHAT.viewer");
 HICHAT.viewer = (function($, window) {
 	var eventProcessor = HICHAT.utils.eventProcessor,
+		validator = HICHAT.utils.Validator,
 		service = HICHAT.service,
-		User = HICHAT.model.User,
-		VCard = HICHAT.model.VCard,
+
 		Room = HICHAT.model.Room,
 		RoomUser = HICHAT.model.RoomUser,
 		RoomConfig = HICHAT.model.RoomConfig,
+		NewVCard = HICHAT.model.VCard,
+		WorkInfo = HICHAT.model.WorkInfo,
+		HomeInfo = HICHAT.model.HomeInfo,
+		PersonalInfo = HICHAT.model.PersonalInfo,
 		HeadPortrait = HICHAT.model.HeadPortrait,
 		Friend = HICHAT.model.Friend,
 		Message = HICHAT.model.Message,
 		GroupMessage = HICHAT.model.GroupMessage,
+		Bookmark = HICHAT.model.Bookmark,
+
+		rooms = {},
 		groups = {
 			"noGroup": {}
 		},
@@ -18,7 +25,6 @@ HICHAT.viewer = (function($, window) {
 		friendVCard = {},
 		privacyChatPanels = {},
 		groupChatPanels = {},
-		vCardPanels = {},
 		wasteChatPanels = {},
 		mainDiv = $("#mainDiv"),
 		loginDiv = $("#loginDiv"),
@@ -36,6 +42,8 @@ HICHAT.viewer = (function($, window) {
 		rosterVCardDialog = $("#rosterVCardDialog"),
 		registerDialog = $("#registerDialog"),
 		rosterGroupDialog = $("#rosterGroupDialog"),
+		addBookmarkDialog = $("#addBookmarkDialog"),
+		bookmarkDialog = $("#bookmarkDialog"),
 		groupUserContextMenu = $("#groupUserContextMenu"),
 		groupConfigContextMenu = $("#groupConfigContextMenu"),
 		rosterContextMenu = $("#rosterContextMenu"),
@@ -51,7 +59,6 @@ HICHAT.viewer = (function($, window) {
 		},
 		__addUserInGroups = function(jid, groupList) {
 			var i;
-			console.log(jid, groupList);
 			if (groupList.length === 0) {
 				groups["noGroup"][jid] = false;
 				return;
@@ -91,6 +98,9 @@ HICHAT.viewer = (function($, window) {
 			$("li[name='deleteRoom']", groupConfigContextMenu).click(function(event) {
 				eventProcessor.triggerEvent("service_groupChat_deleteRoom", [groupConfigContextMenu.data("roomJid")]);
 			});
+			$("li[name='addBookmark']", groupConfigContextMenu).click(function(event) {
+				addBookmarkDialog.data("roomJid", groupConfigContextMenu.data("roomJid")).dialog("open");
+			});
 			$("li[name='changeNickname']", groupConfigContextMenu).click(function(event) {
 				__prompt("请输入要更改的昵称:", function(str) {
 					eventProcessor.triggerEvent("service_groupChat_changeNickInRoom", [groupConfigContextMenu.data("roomJid"), str]);
@@ -110,7 +120,10 @@ HICHAT.viewer = (function($, window) {
 			if (selfAffailiation !== 'admin' && selfAffailiation !== 'owner') {
 				$("li[affiliation='admin']", groupConfigContextMenu).hide();
 			}
-			groupConfigContextMenu.data("roomJid", roomJid).css("left", left + "px").css("top", top - groupConfigContextMenu.height() + "px").fadeIn();
+			groupConfigContextMenu.data("roomJid", roomJid).css({
+				left: left + "px",
+				top: top - groupConfigContextMenu.height() + "px"
+			}).fadeIn();
 		},
 		__initGroupUserContextMenu = function() {
 			$("li[name='admin']", groupUserContextMenu).click(function(event) {
@@ -144,7 +157,10 @@ HICHAT.viewer = (function($, window) {
 			if (selfAffailiation !== "owner") {
 				$("li[affiliation='owner']", groupUserContextMenu).hide();
 			}
-			groupUserContextMenu.data(idArgs).css("left", left + "px").css("top", top - groupUserContextMenu.height() + "px").fadeIn();
+			groupUserContextMenu.data(idArgs).css({
+				left: left + "px",
+				top: top - groupUserContextMenu.height() + "px"
+			}).fadeIn();
 		},
 		__drawRoomUser = function(roomUser) {
 			var content = groupChatPanels[roomUser.toRoomString()].content,
@@ -171,7 +187,8 @@ HICHAT.viewer = (function($, window) {
 						uid = that.data("uid"),
 						affiliation = that.data("affiliation"),
 						roomJid = that.data("roomJid"),
-						selfUser = service.getSelfInRoom(roomJid),
+						//selfUser = service.getSelfInRoom(roomJid),
+						selfUser = rooms[roomJid],
 						left = event.pageX,
 						top = event.pageY;
 					__showGroupUserContextMenu(affiliation, selfUser.getAffiliation(), {
@@ -187,7 +204,7 @@ HICHAT.viewer = (function($, window) {
 						uid = that.data("uid"),
 						affiliation = that.data("affiliation"),
 						roomJid = that.data("roomJid"),
-						selfUser = service.getSelfInRoom(roomJid),
+						selfUser = rooms[roomJid],
 						left = event.pageX,
 						top = event.pageY;
 					__showGroupUserContextMenu(affiliation, selfUser.getAffiliation(), {
@@ -211,125 +228,127 @@ HICHAT.viewer = (function($, window) {
 				$(".u-mdu .u-mc").text("当前在线" + $(".u-mdu ul li", content).length + "人");
 			}
 		},
-		__drawRoomChatTab = function(room) {
-			var index = room.toString(),
-				newTab,
-				newContent,
-				chatPanel,
-				chatTextArea,
-				sendBtn,
-				sendTextArea,
-				sendDiv,
-				groupMemberDiv,
-				closeChatPanelSpan,
-				dropupDiv,
-				memberUl,
-				members,
-				i,
-				m;
+		__drawRoomChatTab = function(room, users) {
+			try {
+				var index = room.toString(),
+					newTab,
+					newContent,
+					chatPanel,
+					chatTextArea,
+					sendBtn,
+					sendTextArea,
+					sendDiv,
+					groupMemberDiv,
+					closeChatPanelSpan,
+					dropupDiv,
+					memberUl,
+					members,
+					i,
+					m,
+					userJid;
 
-			if (typeof groupChatPanels[index] === "undefined") {
-				groupChatPanels[index] = {
-					messageQueue: []
-				};
-			}
+				if (typeof groupChatPanels[index] === "undefined") {
+					groupChatPanels[index] = {
+						messageQueue: []
+					};
+				}
 
-			if (typeof groupChatPanels[index].content === "undefined") {
-				if (typeof wasteChatPanels[index] === "undefined") {
-					newTab = $("<li><a href='#chatPanel_" + room.getRoomId() + "_" + room.getGroupChatResource() + "_" + room.getDomain() + "'>" + room.getRoomName() + "<span><img src='resources/closeChatPanelIcon.png'></span></a></li>");
-					chatTabUl.append(newTab);
-					chatTextArea = $("<div class='u-cta'><table><thead></thead><tbody></tbody></table></div>").css("max-height", $("body").height() - 150 + "px");
-					sendTextArea = $("<textarea></textarea>").bind("keypress", function(event) {
-						if (event.ctrlKey && event.which === 13 || event.which === 10) {
-							$(".u-sbtn", $(this).parent()).trigger("click");
+				if (typeof groupChatPanels[index].content === "undefined") {
+					if (typeof wasteChatPanels[index] === "undefined") {
+						newTab = $("<li><a href='#chatPanel_" + room.getRoomId() + "_" + room.getGroupChatResource() + "_" + room.getDomain() + "'>" + room.getRoomName() + "<span><img src='resources/closeChatPanelIcon.png'></span></a></li>");
+						chatTabUl.append(newTab);
+						chatTextArea = $("<div class='u-cta'><table><thead></thead><tbody></tbody></table></div>").css("max-height", $("body").height() - 150 + "px");
+						sendTextArea = $("<textarea></textarea>").bind("keypress", function(event) {
+							if (event.ctrlKey && event.which === 13 || event.which === 10) {
+								$(".u-sbtn", $(this).parent()).trigger("click");
+							}
+						});
+						sendBtn = $("<button class='btn btn-success u-sbtn'>发送</button>").data("roomJid", room.toString()).bind("click", function(event) {
+							var room = rooms[$(this).data("roomJid")].getRoom(),
+								msgBody = $("textarea", $(this).parent()).val().trim();
+							if (msgBody === "") {
+								return;
+							}
+							eventProcessor.triggerEvent("service_groupChat_groupSendMsg", [new GroupMessage({
+									groupUser: new RoomUser({
+										room: room
+									}),
+									message: msgBody
+								})]);
+							$("textarea", $(this).parent()).focus().val("");
+						});
+
+						memberUl = $("<ul class='dropdown-menu pull-right' roomJid='" + index + "'></ul>");
+						dropupDiv = $("<div style='margin-left:50px' class='u-mdu'></div>")
+							.data("member", 0)
+							.addClass("btn-group dropup")
+							.append("<button class='btn btn-success u-mc'></button>")
+							.append("<button class='btn btn-success dropdown-toggle' data-toggle='dropdown' style='padding:5px 12px 12px 12px'><span class='caret'></span></button>")
+							.append(memberUl);
+						$(".u-mc", dropupDiv).data({
+							roomJid: index,
+							// selfAffailiation: service.getSelfInRoom(index).getAffiliation()
+							selfAffailiation: rooms[index].getAffiliation()
+						}).click(function(event) {
+							var that = $(this),
+								roomJid = that.data("roomJid"),
+								selfAffailiation = that.data("selfAffailiation"),
+								left = event.pageX,
+								top = event.pageY;
+							__showGroupConfigContextMenu(selfAffailiation, roomJid, left, top);
+							event.stopPropagation();
+							event.preventDefault();
+							return false;
+						}).contextmenu(function(event) {
+							var that = $(this),
+								roomJid = that.data("roomJid"),
+								selfAffailiation = that.data("selfAffailiation"),
+								left = event.pageX,
+								top = event.pageY;
+							__showGroupConfigContextMenu(selfAffailiation, roomJid, left, top);
+							event.stopPropagation();
+							event.preventDefault();
+							return false;
+						});
+
+						sendDiv = $("<div class='u-sd s-sd'></div>").append(sendTextArea).append(sendBtn).append(dropupDiv);
+						chatPanel = $("<div class='m-cp'></div>").css("height", $("body").height() - 150 + "px").append(chatTextArea).append(sendDiv);
+						newContent = $("<div id='chatPanel_" + room.getRoomId() + "_" + room.getGroupChatResource() + "_" + room.getDomain() + "'></div>").append(chatPanel);
+						chatTabs.append(newContent);
+						chatTabs.tabs("refresh");
+						$("a", newTab).trigger("click");
+						$("img", newTab).click(function(event) {
+							__deleteRoomChatTab(room);
+							eventProcessor.triggerEvent("service_groupChat_leaveRoom", [room]);
+							event.stopPropagation();
+						});
+						groupChatPanels[index].tab = newTab;
+						groupChatPanels[index].content = newContent;
+						members = room.getCurUsers();
+						for (i in members) {
+							if (Object.prototype.hasOwnProperty.apply(members, [i])) {
+								__drawRoomUser(members[i]);
+							}
 						}
-					});
-					sendBtn = $("<button class='btn btn-success u-sbtn'>发送</button>").data("room", room).bind("click", function(event) {
-						var room = $(this).data("room"),
-							msgBody = $("textarea", $(this).parent()).val().trim();
-						if (msgBody === "") {
-							return;
-						}
-						eventProcessor.triggerEvent("service_groupChat_groupSendMsg", [new GroupMessage({
-								groupUser: new RoomUser({
-									room: room
-								}),
-								message: msgBody
-							})]);
-						$("textarea", $(this).parent()).focus().val("");
-					});
-
-					memberUl = $("<ul class='dropdown-menu pull-right' roomJid='" + index + "'></ul>");
-					dropupDiv = $("<div style='margin-left:50px' class='u-mdu'></div>")
-						.data("member", 0)
-						.addClass("btn-group dropup")
-						.append("<button class='btn btn-success u-mc'></button>")
-						.append("<button class='btn btn-success dropdown-toggle' data-toggle='dropdown' style='padding:5px 12px 11px 12px'><span class='caret'></span></button>")
-						.append(memberUl);
-					$(".u-mc", dropupDiv).data({
-						roomJid: index,
-						selfAffailiation: service.getSelfInRoom(index).getAffiliation()
-					}).click(function(event) {
-						var that = $(this),
-							roomJid = that.data("roomJid"),
-							selfAffailiation = that.data("selfAffailiation"),
-							left = event.pageX,
-							top = event.pageY;
-						__showGroupConfigContextMenu(selfAffailiation, roomJid, left, top);
-						event.stopPropagation();
-						event.preventDefault();
-						return false;
-					}).contextmenu(function(event) {
-						var that = $(this),
-							roomJid = that.data("roomJid"),
-							selfAffailiation = that.data("selfAffailiation"),
-							left = event.pageX,
-							top = event.pageY;
-						__showGroupConfigContextMenu(selfAffailiation, roomJid, left, top);
-						event.stopPropagation();
-						event.preventDefault();
-						return false;
-					});
-
-					sendDiv = $("<div class='u-sd s-sd'></div>").append(sendTextArea).append(sendBtn).append(dropupDiv);
-					chatPanel = $("<div class='m-cp'></div>").css("height", $("body").height() - 150 + "px").append(chatTextArea).append(sendDiv);
-					newContent = $("<div id='chatPanel_" + room.getRoomId() + "_" + room.getGroupChatResource() + "_" + room.getDomain() + "'></div>").append(chatPanel);
-					chatTabs.append(newContent);
-					chatTabs.tabs("refresh");
-					$("a", newTab).trigger("click");
-					$("img", newTab).click(function(event) {
-						__deleteRoomChatTab(room);
-						eventProcessor.triggerEvent("service_groupChat_leaveRoom", [room]);
-						event.stopPropagation();
-					});
-					groupChatPanels[index].tab = newTab;
-					groupChatPanels[index].content = newContent;
-					members = room.getCurUsers();
-					for (i in members) {
-						if (Object.prototype.hasOwnProperty.apply(members, [i])) {
-							__drawRoomUser(members[i]);
+					} else {
+						groupChatPanels[index].tab = wasteChatPanels[index].tab.fadeIn();
+						groupChatPanels[index].content = wasteChatPanels[index].content.fadeIn();
+						chatTabs.tabs("refresh");
+						$("a", groupChatPanels[index].tab).trigger("click");
+						delete wasteChatPanels[index].tab;
+						delete wasteChatPanels[index].content;
+						delete wasteChatPanels[index];
+					}
+					for (userJid in users) {
+						if (users.hasOwnProperty(userJid)) {
+							__drawRoomUser(users[userJid]);
 						}
 					}
 				} else {
-					groupChatPanels[index].tab = wasteChatPanels[index].tab.fadeIn();
-					groupChatPanels[index].content = wasteChatPanels[index].content.fadeIn();
-					chatTabs.tabs("refresh");
-					$("a", groupChatPanels[index].tab).trigger("click");
-					delete wasteChatPanels[index].tab;
-					delete wasteChatPanels[index].content;
-					delete wasteChatPanels[index];
+					$("a", groupChatPanels[index].tab).tab('show');
 				}
-			} else {
-				$("a", groupChatPanels[index].tab).tab('show');
-			}
-			for (i = 0, m = groupChatPanels[index].messageQueue.length; i < m; i++) {
-				__printPrivacyMsg(
-					new Message({
-					user: user,
-					message: groupChatPanels[index].messageQueue[i].msgBody,
-					time: new Date().getTime()
-				}),
-					groupChatPanels[index].messageQueue[i].type);
+			} catch (e) {
+				console.dir(e);
 			}
 		},
 		__deleteRoomChatTab = function(room) {
@@ -338,7 +357,7 @@ HICHAT.viewer = (function($, window) {
 			if (typeof room !== 'string') {
 				index = room.toString();
 			}
-			while (true) {
+			/*while (true) {
 				prev = groupChatPanels[index].tab.prev();
 				if (prev.length === 0) {
 					break;
@@ -347,11 +366,12 @@ HICHAT.viewer = (function($, window) {
 					$("a", prev).trigger("click");
 					break;
 				}
-			}
+			}*/
 			if (typeof groupChatPanels[index] !== "undefined") {
 				wasteChatPanels[index] = {};
 				wasteChatPanels[index].tab = groupChatPanels[index].tab;
 				wasteChatPanels[index].content = groupChatPanels[index].content;
+				$(".u-mdu ul li", wasteChatPanels[index].content).remove();
 				delete groupChatPanels[index].tab;
 				delete groupChatPanels[index].content;
 				wasteChatPanels[index].tab.fadeOut();
@@ -440,16 +460,16 @@ HICHAT.viewer = (function($, window) {
 					privacyChatPanels[index].messageQueue[i].message,
 					privacyChatPanels[index].messageQueue[i].type);
 			}
+			privacyChatPanels[index].messageQueue = [];
 			$("div[jid='" + user.getJid() + "_" + user.getDomain() + "'] .u-mc", rosterTb).hide();
 		},
-
 		__deleteTab = function(user) {
 			var index = user,
 				prev;
 			if (typeof user !== 'string') {
 				index = user.toString();
 			}
-			while (true) {
+			/*while (true) {
 				prev = privacyChatPanels[index].tab.prev();
 				if (prev.length === 0) {
 					break;
@@ -458,7 +478,7 @@ HICHAT.viewer = (function($, window) {
 					$("a", prev).trigger("click");
 					break;
 				}
-			}
+			}*/
 			if (typeof privacyChatPanels[index] !== "undefined") {
 				wasteChatPanels[index] = {};
 				wasteChatPanels[index].tab = privacyChatPanels[index].tab;
@@ -492,16 +512,16 @@ HICHAT.viewer = (function($, window) {
 				statusNode = $("<img class='u-status' src='resources/status_offline.png'/>");
 				divNode.append(statusNode);
 				divNode.append("<div class='u-head'><div><span class='u-mc' style='display:none'></span><img src='resources/defaultHeader.jpg'></div></div>");
-				divNode.append("<div class='u-nick'>" + user.toString() + "</div>");
+				divNode.append("<div class='u-nick'>" + user.getJid() + "</div>");
 				$(".u-head img", divNode).bind("dblclick", function(event) {
-					var vCard = $(this).parent().parent().parent().data("vCard");
-					__createTab(vCard.toSimpleUser(), vCard.getNickname());
+					var vCard = friendVCard[$(this).parent().parent().parent().data("jid")];
+					__createTab(vCard.toSimpleUser(), vCard.getPersonalInfo().getNickname());
 				}).contextmenu(function(event) {
 					var left = event.pageX,
 						top = event.pageY,
-						vCard = $(this).parent().parent().parent().data("vCard");
+						vCard = friendVCard[$(this).parent().parent().parent().data("jid")];
 					top -= rosterContextMenu.height();
-					rosterContextMenu.data("vCard", vCard).css("left", left + "px").css("top", top + "px").fadeIn();
+					rosterContextMenu.data("jid", vCard.toString()).css("left", left + "px").css("top", top + "px").fadeIn();
 					event.stopPropagation();
 					event.preventDefault();
 				});
@@ -512,18 +532,20 @@ HICHAT.viewer = (function($, window) {
 					target: "mouse",
 					hook: "rightmiddle"
 				});
-				eventProcessor.triggerEvent("connector_vCard_getOtherVCard", [user]);
+				__blockElement(divNode, "加载中..");
+				eventProcessor.triggerEvent("service_roster_getOtherVCard", [user]);
 			}
 		},
 		__drawRosterDetail = function(vCard) {
 			var divNode = $("div[jid='" + vCard.getJid() + "_" + vCard.getDomain() + "']", rosterTb);
-			divNode.data("vCard", vCard);
-			if (vCard.getHeadPortrait().isExist()) {
+			divNode.data("jid", vCard.toString());
+			if (vCard.hasHeadPortrait()) {
 				$(".u-head img", divNode).attr("src", vCard.getHeadPortrait().toHtmlString());
 			}
-			if (vCard.getNickname()) {
-				$(".u-nick", divNode).text(vCard.getNickname());
+			if (vCard.getPersonalInfo().getNickname()) {
+				$(".u-nick", divNode).text(vCard.getPersonalInfo().getNickname());
 			}
+			__unBlockElement(divNode);
 		},
 		__deleteRoster = function(user) {
 			$("div[jid='" + user.getJid() + "_" + user.getDomain() + "']", rosterTb).remove();
@@ -550,19 +572,19 @@ HICHAT.viewer = (function($, window) {
 			container = privacyChatPanels[index];
 			if (typeof container.content !== "undefined") {
 				if (type === 'send') {
-					if (selfVCard.getNickname()) {
-						result += selfVCard.getNickname();
+					if (selfVCard.getPersonalInfo().getNickname()) {
+						result += selfVCard.getPersonalInfo().getNickname();
 					} else {
-						result += selfVCard.toString();
+						result += selfVCard.getJid();
 					}
 					fragment.css("float", "right");
 					msgDiv.addClass("u-smsg");
 				} else {
-					friendNickname = friendVCard[user.toString()].getNickname();
+					friendNickname = friendVCard[user.toString()].getPersonalInfo().getNickname();
 					if (friendNickname) {
 						result += friendNickname;
 					} else {
-						result += user.toString();
+						result += user.getJid();
 					}
 					fragment.css("float", "left");
 					msgDiv.addClass("u-rmsg");
@@ -606,7 +628,9 @@ HICHAT.viewer = (function($, window) {
 			}
 			container = groupChatPanels[index];
 			if (typeof container.content !== "undefined") {
-				if (roomUser.getNickname() === service.getSelfInRoom(index).getNickname()) {
+				//if (roomUser.getNickname() === service.getSelfInRoom(index).getNickname()) {
+				console.log(roomUser, rooms[index]);
+				if (roomUser.getNickname() === rooms[index].getNickname()) {
 					fragment.css("float", "right");
 					msgDiv.addClass("u-rmsg");
 				} else {
@@ -629,78 +653,6 @@ HICHAT.viewer = (function($, window) {
 				}
 				//提示消息到来
 			}
-		},
-		__vCardDlgModifyPrepare = function() {
-			$("table tbody tr", vCardDialog).each(function() {
-				$("td:eq(1)", this).hide();
-				$("td:eq(2)", this).show();
-			});
-			vCardDialog.dialog("option", "buttons", [{
-					text: "提交",
-					click: __vCardDlgModifySubmit
-				}, {
-					text: "返回",
-					click: __vCardDlgModifyCancel
-				}
-			]);
-		},
-
-		__vCardDlgModifySubmit = function() {
-			var vCardTb = $("table tbody tr", vCardDialog),
-				newVCard = new VCard({
-					sex: $("select", vCardTb).val(),
-					desc: $("textarea", vCardTb).val(),
-					email: $("input[name='email']", vCardTb).val(),
-					tele: $("input[name='tele']", vCardTb).val(),
-					bday: $("input[name='bday']", vCardTb).val(),
-					nickname: $("input[name='nickname']", vCardTb).val()
-				}),
-				headPortraitFile = $("input[name='image']", vCardTb).get()[0].files[0];
-			if (typeof headPortraitFile !== "undefined") {
-				var reader = new FileReader();
-				reader.readAsDataURL(headPortraitFile);
-				reader.onprogress = function(evt) {
-					if (evt.lengthComputable) {
-						// evt.loaded and evt.total are ProgressEvent properties
-						var loaded = (evt.loaded / evt.total);
-						if (loaded < 1) {
-							// Increase the prog bar length
-							// style.width = (loaded * 200) + "px";
-						}
-					}
-				};
-				reader.onload = function(evt) {
-					var fileString = evt.target.result,
-						binval = /^data:(\w+\/\w+);base64,(.*)/.exec(fileString);
-					newVCard.setHeadPortrait(new HeadPortrait({
-						type: headPortraitFile.type,
-						binval: binval[2]
-					}));
-					eventProcessor.triggerEvent("service_selfControl_updateMyVCard", [newVCard]);
-					__vCardDlgModifyCancel();
-				};
-				reader.onerror = function(evt) {
-					if (evt.target.error.name == "NotReadableError") {
-						alert("文件读取失败，请上传正确的文件");
-					}
-				};
-			} else {
-				newVCard.setHeadPortrait(new HeadPortrait({}));
-				eventProcessor.triggerEvent("service_selfControl_updateMyVCard", [newVCard]);
-				__vCardDlgModifyCancel();
-			}
-		},
-
-		__vCardDlgModifyCancel = function() {
-			$("table tbody tr", vCardDialog).each(function() {
-				$("td:eq(1)", this).show();
-				$("td:eq(2)", this).hide();
-			});
-			vCardDialog.dialog("option", "buttons", [{
-					text: "修改",
-					click: __vCardDlgModifyPrepare
-				}
-			]);
 		},
 		__initRoomDialogs = function() {
 			/*------------创建房间初始化-------------*/
@@ -784,7 +736,7 @@ HICHAT.viewer = (function($, window) {
 				hide: "fade",
 				open: function(event, ui) {
 					$("input", joinRoomDialog).val("");
-					if (!service.getRoomInfo(joinRoomDialog.data("roomJid")).getAttribute("passwordprotected")) {
+					if (!rooms[joinRoomDialog.data("roomJid")].getRoom().getAttribute("passwordprotected")) {
 						$("table tbody tr:eq(1)", joinRoomDialog).hide();
 					} else {
 						$("table tbody tr:eq(1)", joinRoomDialog).show();
@@ -795,10 +747,10 @@ HICHAT.viewer = (function($, window) {
 						text: "确认",
 						click: function(event, ui) {
 							var roomUser = new RoomUser({
-								room: service.getRoomInfo(joinRoomDialog.data("roomJid")),
+								room: rooms[joinRoomDialog.data("roomJid")].getRoom(),
 								nickname: $("input[name='nickname']", joinRoomDialog).val()
 							});
-							if (!service.getRoomInfo(joinRoomDialog.data("roomJid")).getAttribute("passwordprotected")) {
+							if (!rooms[joinRoomDialog.data("roomJid")].getRoom().getAttribute("passwordprotected")) {
 								eventProcessor.triggerEvent("service_groupChat_joinRoom", [roomUser]);
 							} else {
 								eventProcessor.triggerEvent("service_groupChat_joinRoom", [roomUser, $("input[name='password']", joinRoomDialog).val()]);
@@ -820,7 +772,8 @@ HICHAT.viewer = (function($, window) {
 				show: "fade",
 				hide: "fade",
 				open: function(event, ui) {
-					eventProcessor.triggerEvent("service_groupChat_listRoom", []);
+					__blockElement(findRoomDialog, "查找房间中...");
+					eventProcessor.triggerEvent("service_groupChat_listRoom");
 				}
 			});
 		},
@@ -840,7 +793,7 @@ HICHAT.viewer = (function($, window) {
 						text: "申请",
 						click: function() {
 							var destJid = $("input", subscribeDialog).val();
-							if (typeof destJid === "undefined") {
+							if (!destJid) {
 								__noticeError("查找的jid不能为空");
 								return;
 							}
@@ -878,6 +831,9 @@ HICHAT.viewer = (function($, window) {
 			$("#joinRoomBtn").click(function(event) {
 				findRoomDialog.dialog("open");
 			});
+			$("#bookmarkBtn").click(function(event) {
+				bookmarkDialog.dialog("open");
+			});
 
 			Tipped.create("#subscribeBtn", "添加好友", {
 				skin: 'blue'
@@ -900,9 +856,52 @@ HICHAT.viewer = (function($, window) {
 			Tipped.create("#joinRoomBtn", "加入房间", {
 				skin: 'blue'
 			});
+			Tipped.create("#bookmarkBtn", "我的书签", {
+				skin: 'blue'
+			});
 		},
 		__initVCardDialog = function() {
-			/*------------头像及个人信息修改初始化------------*/
+			var __vCardDlgModifySave = function() {
+				var vCardForm = $("#vCardForm", vCardDialog).get()[0],
+					vCard;
+				vCard = new NewVCard({
+					homeInfo: new HomeInfo({
+						street: vCardForm.home_street.value,
+						city: vCardForm.home_city.value,
+						province: vCardForm.home_province.value,
+						postCode: vCardForm.home_postCode.value,
+						country: vCardForm.home_country.value,
+						phone: vCardForm.home_phone.value,
+						fax: vCardForm.home_fax.value,
+						bleeper: vCardForm.home_bleeper.value,
+						telephone: vCardForm.home_telephone.value
+					}),
+					workInfo: new WorkInfo({
+						street: vCardForm.work_street.value,
+						city: vCardForm.work_city.value,
+						province: vCardForm.work_province.value,
+						postCode: vCardForm.work_postCode.value,
+						country: vCardForm.work_country.value,
+						phone: vCardForm.work_phone.value,
+						fax: vCardForm.work_fax.value,
+						bleeper: vCardForm.work_bleeper.value,
+						telephone: vCardForm.work_telephone.value,
+						company: vCardForm.company.value,
+						title: vCardForm.title.value,
+						department: vCardForm.department.value,
+						webSite: vCardForm.webSite.value
+					}),
+					personalInfo: new PersonalInfo({
+						name: vCardForm.name.value,
+						middleName: vCardForm.middleName.value,
+						familyName: vCardForm.familyName.value,
+						nickname: vCardForm.nickname.value,
+						email: vCardForm.email.value
+					}),
+					headPortrait: $("#avatarPreview").data("avatar")
+				});
+				eventProcessor.triggerEvent("service_selfControl_updateMyVCard", [vCard]);
+			};
 			$("#myHeader").bind("dblclick", function(event) {
 				vCardDialog.dialog("open");
 			});
@@ -911,11 +910,12 @@ HICHAT.viewer = (function($, window) {
 				hook: "rightmiddle",
 				target: "mouse"
 			});
-			$("input[name='image']", vCardDialog).bind("change", function(event) {
+			$("input[name='avatar']", vCardDialog).bind("change", function(event) {
 				var that = $(this),
-					file = that.get()[0].files[0];
-				if (file.size > 150 * 1024) {
-					__noticeError("头像文件不合法：头像大小不能超过150KB");
+					file = that.get()[0].files[0],
+					imgNode;
+				if (file.size > 160 * 1024) {
+					__noticeError("头像文件不合法：头像大小不能超过160KB");
 					that.val("");
 					return;
 				}
@@ -924,7 +924,37 @@ HICHAT.viewer = (function($, window) {
 					that.val("");
 					return;
 				}
+				if (typeof file !== "undefined") {
+					__blockElement(vCardDialog);
+					var reader = new FileReader();
+					reader.readAsDataURL(file);
+					reader.onprogress = function(evt) {
+						if (evt.lengthComputable) {
+							// evt.loaded and evt.total are ProgressEvent properties
+							var loaded = (evt.loaded / evt.total);
+							if (loaded < 1) {}
+						}
+					};
+					reader.onload = function(evt) {
+						var fileString = evt.target.result,
+							binval = /^data:(\w+\/\w+);base64,(.*)/.exec(fileString);
+						$("#avatarPreview").attr("src", fileString).data("avatar", new HeadPortrait({
+							type: file.type,
+							binval: binval[2]
+						}));
+						__unBlockElement(vCardDialog);
+					};
+					reader.onerror = function(evt) {
+						if (evt.target.error.name == "NotReadableError") {
+							alert("文件读取失败，请上传正确的文件");
+							__unBlockElement(vCardDialog);
+						}
+					};
+				}
+				/*检查尺寸--未完成*/
 			});
+
+			$("#vCardTabs").tabs();
 
 			vCardDialog.dialog({
 				autoOpen: false,
@@ -933,20 +963,51 @@ HICHAT.viewer = (function($, window) {
 				resizable: false,
 				modal: false,
 				title: "个人名片",
-				width: 400,
+				width: 800,
 				show: "fade",
 				hide: "fade",
 				buttons: [{
-						text: "修改",
-						click: __vCardDlgModifyPrepare
+						text: "保存",
+						click: __vCardDlgModifySave
 					}
 				],
 				open: function(event, ui) {
-					var dialog = $(this);
-					$("table tbody tr", dialog).each(function() {
-						$("td:eq(1)", this).show();
-						$("td:eq(2)", this).hide();
-					});
+					var vCard = selfVCard,
+						vCardForm = $("#vCardForm", vCardDialog);
+					$("input[name='name']", vCardForm).val(vCard.getPersonalInfo().getName());
+					$("input[name='middleName']", vCardForm).val(vCard.getPersonalInfo().getMiddleName());
+					$("input[name='familyName']", vCardForm).val(vCard.getPersonalInfo().getFamilyName());
+					$("input[name='nickname']", vCardForm).val(vCard.getPersonalInfo().getNickname());
+					$("input[name='email']", vCardForm).val(vCard.getPersonalInfo().getEmail());
+
+					$("input[name='company']", vCardForm).val(vCard.getWorkInfo().getCompany());
+					$("input[name='title']", vCardForm).val(vCard.getWorkInfo().getTitle());
+					$("input[name='department']", vCardForm).val(vCard.getWorkInfo().getDepartment());
+					$("input[name='webSite']", vCardForm).val(vCard.getWorkInfo().getWebSite());
+					$("input[name='work_street']", vCardForm).val(vCard.getWorkInfo().getStreet());
+					$("input[name='work_city']", vCardForm).val(vCard.getWorkInfo().getCity());
+					$("input[name='work_province']", vCardForm).val(vCard.getWorkInfo().getProvince());
+					$("input[name='work_postCode']", vCardForm).val(vCard.getWorkInfo().getPostCode());
+					$("input[name='work_country']", vCardForm).val(vCard.getWorkInfo().getCountry());
+					$("input[name='work_phone']", vCardForm).val(vCard.getWorkInfo().getPhone());
+					$("input[name='work_fax']", vCardForm).val(vCard.getWorkInfo().getFax());
+					$("input[name='work_bleeper']", vCardForm).val(vCard.getWorkInfo().getBleeper());
+					$("input[name='work_telephone']", vCardForm).val(vCard.getWorkInfo().getTelephone());
+
+					$("input[name='home_street']", vCardForm).val(vCard.getHomeInfo().getStreet());
+					$("input[name='home_city']", vCardForm).val(vCard.getHomeInfo().getCity());
+					$("input[name='home_province']", vCardForm).val(vCard.getHomeInfo().getProvince());
+					$("input[name='home_postCode']", vCardForm).val(vCard.getHomeInfo().getPostCode());
+					$("input[name='home_country']", vCardForm).val(vCard.getHomeInfo().getCountry());
+					$("input[name='home_phone']", vCardForm).val(vCard.getHomeInfo().getPhone());
+					$("input[name='home_fax']", vCardForm).val(vCard.getHomeInfo().getFax());
+					$("input[name='home_bleeper']", vCardForm).val(vCard.getHomeInfo().getBleeper());
+					$("input[name='home_telephone']", vCardForm).val(vCard.getHomeInfo().getTelephone());
+					if (vCard.hasHeadPortrait()) {
+						$("#avatarPreview").attr("src", "data:" + vCard.getHeadPortrait().getType() + ";base64," + vCard.getHeadPortrait().getBinval()).data("avatar", vCard.getHeadPortrait());
+					} else {
+						$("#avatarPreview").attr("src", "resources/defaultHeader.jpg").data("avatar", null);
+					}
 				}
 			});
 		},
@@ -955,9 +1016,30 @@ HICHAT.viewer = (function($, window) {
 			$("form", loginDiv).bind("submit", function(event) {
 				var username = $("input[name='username']", this).val(),
 					password = $("input[name='password']", this).val();
+				if (!$(this).valid()) {
+					return;
+				}
+				__blockPage("登录中，请稍后...");
 				eventProcessor.triggerEvent("service_selfControl_login", [username, password]);
 				event.stopPropagation();
 				event.preventDefault();
+			}).validate({
+				rules: {
+					username: {
+						required: true
+					},
+					password: {
+						required: true
+					}
+				},
+				messages: {
+					username: {
+						required: "请填写用户名"
+					},
+					password: {
+						required: "请填写密码"
+					}
+				}
 			});
 			/*------------注册初始化------------*/
 			$("#registerBtn").bind("click", function(event) {
@@ -984,11 +1066,43 @@ HICHAT.viewer = (function($, window) {
 			$("#registerForm").submit(function(event) {
 				var username = this.username.value,
 					password = this.password.value,
-					passRepeat = this.password.value;
-				/*表单验证--未完成*/
+					passRepeat = this.passRepeat.value;
+				if (!$(this).valid()) {
+					return;
+				}
+				__blockPage("注册中，请稍后...");
 				eventProcessor.triggerEvent("service_selfControl_register", [username, password]);
 				event.preventDefault();
 				event.stopPropagation();
+			}).validate({
+				rules: {
+					username: {
+						required: true,
+						rangelength: [5, 12]
+					},
+					password: {
+						required: true,
+						rangelength: [5, 12]
+					},
+					passRepeat: {
+						required: true,
+						equalTo: "#regPass"
+					}
+				},
+				messages: {
+					username: {
+						required: "请填写用户名",
+						rangelength: "请填写长度为5-12的用户名"
+					},
+					password: {
+						required: "请填写密码",
+						rangelength: "请填写长度为5-12的密码"
+					},
+					passRepeat: {
+						required: "请再次填写密码",
+						equalTo: "两次输入的密码不一致"
+					}
+				}
 			});
 		},
 		__initChatTabs = function() {
@@ -1024,19 +1138,19 @@ HICHAT.viewer = (function($, window) {
 		},
 		__initRosterContextMenu = function() {
 			$("li[value='delete']", rosterContextMenu).bind("click", function(event) {
-				eventProcessor.triggerEvent("service_roster_sendUnsubscribe", [rosterContextMenu.data("vCard")]);
+				eventProcessor.triggerEvent("service_roster_sendUnsubscribe", [friendVCard[rosterContextMenu.data("jid")]]);
 			});
 			$("li[value='info']", rosterContextMenu).bind("click", function(event) {
-				rosterVCardDialog.data("vCard", rosterContextMenu.data("vCard"));
+				rosterVCardDialog.data("jid", rosterContextMenu.data("jid"));
 				rosterVCardDialog.dialog("close");
 				rosterVCardDialog.dialog("open");
 			});
 			$("li[value='chat']", rosterContextMenu).bind("click", function(event) {
-				var vCard = rosterContextMenu.data("vCard");
-				__createTab(vCard.toSimpleUser(), vCard.getNickname());
+				var vCard = friendVCard[rosterContextMenu.data("jid")];
+				__createTab(vCard.toSimpleUser(), vCard.getPersonalInfo().getNickname());
 			});
 			$("li[value='group']", rosterContextMenu).bind("click", function(event) {
-				rosterGroupDialog.data("vCard", rosterContextMenu.data("vCard")).dialog("open");
+				rosterGroupDialog.data("jid", rosterContextMenu.data("jid")).dialog("open");
 			});
 		},
 		__initRosterGroupDialog = function() {
@@ -1052,10 +1166,10 @@ HICHAT.viewer = (function($, window) {
 				show: "fade",
 				hide: "fade",
 				open: function(event, ui) {
-					var vCard = $(this).data("vCard"),
+					var vCard = friendVCard[$(this).data("jid")],
 						groupName,
 						groupList = $("ul", this);
-					$("strong", this).text("要将 " + vCard.getNickname() + "(" + vCard.toString() + ") 加入哪些分组？");
+					$("strong", this).text("要将 " + vCard.getPersonalInfo().getNickname() + "(" + vCard.toString() + ") 加入哪些分组？");
 					groupList.html("");
 					for (groupName in groups) {
 						if (groups.hasOwnProperty(groupName)) {
@@ -1083,7 +1197,7 @@ HICHAT.viewer = (function($, window) {
 					}
 				});
 				eventProcessor.triggerEvent("service_roster_changeGroup", [new Friend({
-						vCard: rosterGroupDialog.data("vCard"),
+						vCard: friendVCard[rosterGroupDialog.data("jid")],
 						groups: groupList
 					})]);
 				event.stopPropagation();
@@ -1096,7 +1210,6 @@ HICHAT.viewer = (function($, window) {
 				$("div.g-line", rosterTb).each(function() {
 					var that = $(this),
 						user = that.data("user");
-					console.log(groups[groupName][user.toString()]);
 					if (typeof groups[groupName][user.toString()] !== "undefined") {
 						that.show();
 					} else {
@@ -1122,7 +1235,6 @@ HICHAT.viewer = (function($, window) {
 					$("#changeGroupBtn").text("在线好友");
 				});
 			});
-			// $("ul li[value='noGroup']", changeGroupMenu).bind("click", __displayRosterAsGroupFun("noGroup"));
 			$("#changeGroupBtn").bind("click", function(event) {
 				var left = event.pageX,
 					top = event.pageY,
@@ -1160,15 +1272,125 @@ HICHAT.viewer = (function($, window) {
 			var clientHeight = document.body.clientHeight;
 			rosterTb.css("height", clientHeight - 300 + "px");
 		},
-		/*<!-- "<tr><td>JID</td><td>" + index + "</td></tr>" +
-          "<tr><td>昵称</td><td>" + vCard.getNickname() + "</td></tr>" +
-          "<tr><td>性别</td><td>" + vCard.getSex() + "</td></tr>" +
-          "<tr><td>生日</td><td>" + vCard.getBirthday() + "</td></tr>" +
-          "<tr><td>邮箱</td><td>" + vCard.getEmail() + "</td></tr>" +
-          "<tr><td>手机</td><td>" + vCard.getTelephone() + "</td></tr>" +
-          "<tr><td>自我描述</td><td>" + vCard.getDescription() + "</td></tr>" -->*/
 		__initRosterVCardDialog = function() {
+			$("#otherVCardTabs").tabs();
 			rosterVCardDialog.dialog({
+				autoOpen: false,
+				closeOnEscape: true,
+				draggable: true,
+				resizable: false,
+				modal: false,
+				title: "好友信息",
+				width: 800,
+				show: "fade",
+				hide: "fade",
+				open: function(event, ui) {
+					var vCard = friendVCard[rosterVCardDialog.data("jid")];
+					$("tbody tr td", rosterVCardDialog).each(function() {
+						var that = $(this),
+							type = that.attr("vType"),
+							value = "";
+						switch (type) {
+							case "name":
+								value = vCard.getPersonalInfo().getName();
+								break;
+							case "middleName":
+								value = vCard.getPersonalInfo().getMiddleName();
+								break;
+							case "familyName":
+								value = vCard.getPersonalInfo().getFamilyName();
+								break;
+							case "nickname":
+								value = vCard.getPersonalInfo().getNickname();
+								break;
+							case "email":
+								value = vCard.getPersonalInfo().getEmail();
+								break;
+
+							case "company":
+								vCard.getWorkInfo().getCompany();
+								break;
+							case "title":
+								value = vCard.getWorkInfo().getTitle();
+								break;
+							case "department":
+								value = vCard.getWorkInfo().getDepartment();
+								break;
+							case "webSite":
+								value = vCard.getWorkInfo().getWebSite();
+								break;
+							case "work_street":
+								value = vCard.getWorkInfo().getStreet();
+								break;
+							case "work_city":
+								value = vCard.getWorkInfo().getCity();
+								break;
+							case "work_province":
+								value = vCard.getWorkInfo().getProvince();
+								break;
+							case "work_postCode":
+								value = vCard.getWorkInfo().getPostCode();
+								break;
+							case "work_country":
+								value = vCard.getWorkInfo().getCountry();
+								break;
+							case "work_phone":
+								value = vCard.getWorkInfo().getPhone();
+								break;
+							case "work_fax":
+								value = vCard.getWorkInfo().getFax();
+								break;
+							case "work_bleeper":
+								value = vCard.getWorkInfo().getBleeper();
+								break;
+							case "work_telephone":
+								value = vCard.getWorkInfo().getTelephone();
+								break;
+
+							case "home_street":
+								value = vCard.getHomeInfo().getStreet();
+								break;
+							case "home_city":
+								value = vCard.getHomeInfo().getCity();
+								break;
+							case "home_province":
+								value = vCard.getHomeInfo().getProvince();
+								break;
+							case "home_postCode":
+								value = vCard.getHomeInfo().getPostCode();
+								break;
+							case "home_country":
+								value = vCard.getHomeInfo().getCountry();
+								break;
+							case "home_phone":
+								value = vCard.getHomeInfo().getPhone();
+								break;
+							case "home_fax":
+								value = vCard.getHomeInfo().getFax();
+								break;
+							case "home_bleeper":
+								value = vCard.getHomeInfo().getBleeper();
+								break;
+							case "home_telephone":
+								value = vCard.getHomeInfo().getTelephone();
+								break;
+							default:
+								value = "";
+						}
+						if (typeof type !== "undefined") {
+							if (typeof value === "undefined" || value === "") {
+								that.text("未填写");
+							} else {
+								that.text(value);
+							}
+						}
+					});
+				}
+			});
+		},
+		__initAddBookmarkDialog = function() {
+			addBookmarkDialog.dialog({
+				title: "添加书签",
 				autoOpen: false,
 				closeOnEscape: true,
 				draggable: true,
@@ -1177,22 +1399,66 @@ HICHAT.viewer = (function($, window) {
 				width: 400,
 				show: "fade",
 				hide: "fade",
-				open : function(event, ui){
-					var that = $(this),
-						vCard = that.data("vCard"),
-						tbody = $("table tbody", rosterVCardDialog);
-					$("td[name='jid']", tbody).text(vCard.toString());
-					$("td[name='nickname']", tbody).text(vCard.getNickname());
-					$("td[name='sex']", tbody).text(vCard.getSex());
-					$("td[name='birthday']", tbody).text(vCard.getBirthday());
-					$("td[name='email']", tbody).text(vCard.getEmail());
-					$("td[name='telephone']", tbody).text(vCard.getTelephone());
-					$("td[name='desc']", tbody).text(vCard.getDescription());
-					if(vCard.getNickname()){
-						rosterVCardDialog.dialog("option","title",vCard.getNickname() + "的个人信息");
-					} else {
-						rosterVCardDialog.dialog("option","title",vCard.toString()  + "的个人信息");
+				open: function(event, ui) {
+					$("input", addBookmarkDialog).val("");
+					$("#bookmarkRoomName").text(rooms[addBookmarkDialog.data("roomJid")].getRoom().getRoomName());
+				}
+			});
+			$("#addBookmarkForm").submit(function(event) {
+				__blockElement(addBookmarkDialog, "书签添加中...");
+				var roomJid = addBookmarkDialog.data("roomJid"),
+					tag = this.tag.value,
+					nickname = this.nickname.value,
+					autojoin = this.autojoin.checked;
+				if(!$(this).valid()){
+					return;
+				}
+				eventProcessor.triggerEvent("service_groupChat_addBookmark", [new Bookmark({
+						roomJid: roomJid,
+						tag: tag,
+						nickname: nickname,
+						autojoin: autojoin
+					})]);
+				event.preventDefault();
+				event.stopPropagation();
+			}).validate({
+				rules: {
+					tag: {
+						required: true,
+						rangelength: [1, 10]
+					},
+					nickname: {
+						required: true,
+						rangelength: [1, 12]
 					}
+				},
+				messages: {
+					tag : {
+						required : "请填写书签名称",
+						rangelength : "请填写长度为1-10个字符的名称"
+					},
+					nickname : {
+						required : "请填写进入房间使用的昵称",
+						rangelength : "请填写长度为1-12个字符的昵称"
+					}
+				}
+			});
+		},
+		__initBookmarkDialog = function() {
+			bookmarkDialog.dialog({
+				title: "我的书签",
+				autoOpen: false,
+				closeOnEscape: true,
+				draggable: true,
+				resizable: false,
+				modal: false,
+				width: 800,
+				show: "fade",
+				hide: "fade",
+				open: function(event, ui) {
+					__blockElement(bookmarkDialog);
+					$("table tbody", bookmarkDialog).html("");
+					eventProcessor.triggerEvent("service_groupChat_getBookmarks");
 				}
 			});
 		},
@@ -1219,6 +1485,40 @@ HICHAT.viewer = (function($, window) {
 					fnCancel.call(this, str);
 				}
 			});
+		},
+		__blockElement = function($_ele, msg) {
+			$_ele.block({
+				message: msg,
+				css: {
+					border: 'none',
+					padding: '15px',
+					backgroundColor: '#000',
+					'-webkit-border-radius': '10px',
+					'-moz-border-radius': '10px',
+					opacity: 0.5,
+					color: '#fff'
+				}
+			});
+		},
+		__unBlockElement = function($_ele) {
+			$_ele.unblock();
+		},
+		__blockPage = function(msg) {
+			$.blockUI({
+				message: msg,
+				css: {
+					border: 'none',
+					padding: '15px',
+					backgroundColor: '#000',
+					'-webkit-border-radius': '10px',
+					'-moz-border-radius': '10px',
+					opacity: 0.5,
+					color: '#fff'
+				}
+			});
+		},
+		__unBlockPage = function() {
+			$.unblockUI();
 		};
 
 	(function() {
@@ -1239,6 +1539,8 @@ HICHAT.viewer = (function($, window) {
 		__initRosterGroupDialog();
 		__initChangeGroupMenu();
 		__initRosterVCardDialog();
+		__initAddBookmarkDialog();
+		__initBookmarkDialog();
 	}());
 
 	eventProcessor.bindEvent({
@@ -1268,6 +1570,7 @@ HICHAT.viewer = (function($, window) {
 			registerDialog.dialog("close");
 		},
 		viewer_drawRoster: function(event, friend) {
+			friendVCard[friend.getVCard().toString()] = friend.getVCard();
 			__drawRoster(friend);
 		},
 		viewer_drawRosterDetail: function(event, vCard) {
@@ -1312,68 +1615,25 @@ HICHAT.viewer = (function($, window) {
 			__prompt(msg, fnOk, fnCancel);
 		},
 		viewer_drawVCard: function(event, vCard) {
-			var trs = $("table tbody tr", vCardDialog.data("vCard", vCard)),
-				i,
-				type,
-				curNode;
-			for (i = trs.length; i--;) {
-				type = $(trs[i]).attr("itemType");
-				if (type === 'sex') {
-					if (vCard.getSex() === 'male') {
-						$("td:eq(1)", trs[i]).text("男");
-						$("td:eq(2) option:eq(0)", trs[i]).attr("selected", true);
-					} else if (vCard.getSex() === 'female') {
-						$("td:eq(1)", trs[i]).text("女");
-						$("td:eq(2) option:eq(1)", trs[i]).attr("selected", true);
-					} else {
-						$("td:eq(1)", trs[i]).text("未填写");
-					}
-				} else if (type === 'bday') {
-					$("td:eq(1)", trs[i]).text(vCard.getBirthday());
-					$("td:eq(2) input", trs[i]).val(vCard.getBirthday());
-				} else if (type === 'desc') {
-					$("td:eq(1)", trs[i]).text(vCard.getDescription());
-					$("td:eq(2) textarea", trs[i]).val(vCard.getDescription());
-				} else if (type === 'tele') {
-					$("td:eq(1)", trs[i]).text(vCard.getTelephone());
-					$("td:eq(2) input", trs[i]).val(vCard.getTelephone());
-				} else if (type === 'email') {
-					$("td:eq(1)", trs[i]).text(vCard.getEmail());
-					$("td:eq(2) input", trs[i]).val(vCard.getEmail());
-				} else if (type === 'nickname') {
-					$("td:eq(1)", trs[i]).text(vCard.getNickname());
-					$("td:eq(2) input", trs[i]).val(vCard.getNickname());
-				} else if (type === 'photo') {
-					curNode = $("td:eq(1)", trs[i]);
-					if ($("img", curNode).length === 0) {
-						curNode.append("<img width=90 height=90/>");
-					}
-					if (vCard.getHeadPortrait().isExist()) {
-						$("img", curNode).attr("src", vCard.getHeadPortrait().toHtmlString());
-					} else {
-						$("img", curNode).attr("src", "resources/defaultHeader.jpg");
-					}
-				}
-			}
-			if (vCard.getNickname()) {
-				$("#myNameAndHeader h3").text(vCard.getNickname());
+			if (vCard.getPersonalInfo().getNickname() !== "" && typeof vCard.getPersonalInfo().getNickname() !== "undefined") {
+				$("#myNameAndHeader h3").text(vCard.getPersonalInfo().getNickname());
 			} else {
-				$("#myNameAndHeader h3").text(vCard.toString());
+				$("#myNameAndHeader h3").text(vCard.getJid());
+			}
+			if (vCard.hasHeadPortrait()) {
+				$("#myHeader").attr("src", vCard.getHeadPortrait().toHtmlString());
+			} else {
+				$("#myHeader").attr("src", "resources/defaultHeader.jpg");
 			}
 			Tipped.create("#myNameAndHeader h3", vCard.toString(), {
 				skin: "blue",
 				hook: "rightmiddle",
 				target: "mouse"
 			});
-			if (vCard.getHeadPortrait().isExist()) {
-				$("#myHeader").attr("src", vCard.getHeadPortrait().toHtmlString());
-			} else {
-				$("#myHeader").attr("src", "resources/defaultHeader.jpg");
-			}
 			selfVCard = vCard;
+			__unBlockPage();
 		},
 		viewer_listRoom: function(event, roomList) {
-			console.log(roomList);
 			try {
 				var newNodesStr = "",
 					i;
@@ -1385,18 +1645,23 @@ HICHAT.viewer = (function($, window) {
 					joinRoomDialog.data("roomJid", $(this).attr("roomJid")).dialog("open");
 					findRoomDialog.dialog("close");
 				});
+				__unBlockElement(findRoomDialog);
 			} catch (e) {
 				console.log(e.message);
 			}
 		},
 		viewer_drawRoomDetail: function(event, room) {
+			rooms[room.toString()] = new RoomUser({
+				room: room
+			});
 			if (room.getAttribute("passwordprotected")) {
 				$("button[roomJid='" + room.toString() + "']", findRoomDialog).parent().prepend("<img src='resources/msgWarnIcon.png'/>");
 			}
 		},
-		viewer_drawRoomChatTab: function(event, room) {
-			__drawRoomChatTab(room);
-			eventProcessor.triggerEvent("connector_groupChat_addBookmark",[room.toString(), room, selfVCard.getNickname(), false]);
+		viewer_drawRoomChatTab: function(event, roomUser, users) {
+			rooms[roomUser.toRoomString()] = roomUser;
+			console.log("rooms : ", roomUser.getRoom());
+			__drawRoomChatTab(roomUser.getRoom(), users);
 		},
 		viewer_deleteRoomChatTab: function(event, room) {
 			__destoryRoomChatTab(room);
@@ -1448,6 +1713,146 @@ HICHAT.viewer = (function($, window) {
 			__addUserInGroups(friend.getVCard().toString(), friend.getGroups());
 			rosterGroupDialog.dialog("close");
 			__noticeSuccess("分组修改成功");
+		},
+		viewer_addedBookmark: function(event) {
+			__unBlockElement(addBookmarkDialog);
+			addBookmarkDialog.dialog("close");
+			__noticeSuccess("添加书签成功");
+		},
+		viewer_addedBookmarkFailed: function(event, reason) {
+			__unBlockElement(addBookmarkDialog);
+			__noticeError(reason);
+		},
+		viewer_getedBookmarks: function(event, bookmarks) {
+			var tbody = $("table tbody", bookmarkDialog),
+				trNode,
+				tdNode,
+				btnNode,
+				joinBtn,
+				i,
+				__deleteFun = function(event) {
+					var bookmark = $(this).parent().parent().data("bookmark");
+					eventProcessor.triggerEvent("service_groupChat_deleteBookmark", [bookmark.getRoomJid()]);
+					event.stopPropagation();
+					event.preventDefault();
+				},
+				__joinFun = function(event) {
+					var that = $(this),
+						bookmark = that.parent().parent().data("bookmark");
+					roomUser = new RoomUser({
+						room: new Room(bookmark.getRoomJid()),
+						nickname: bookmark.getNickname()
+					});
+					eventProcessor.triggerEvent("service_groupChat_joinRoom", [roomUser]);
+					event.stopPropagation();
+					event.preventDefault();
+				},
+				__modifyFun = function(event) {
+					var that = $(this),
+						trNode = that.parent().parent(),
+						bookmark = trNode.data("bookmark"),
+						buttons = $("button", trNode);
+					var tagInput = $("<input type='text' style='width:100px;margin:0' name='tag' placeholder='书签名称'/>"),
+						nicknameInput = $("<input type='text' style='width:100px;margin:0' name='nickname' placeholder='昵称'/>"),
+						autojoinInput = $("<input type='checkbox' name='autojoin'/>");
+					tagInput.val(bookmark.getTag());
+					nicknameInput.val(bookmark.getNickname());
+					$("td:eq(0)", trNode).html(tagInput);
+					$("td:eq(2)", trNode).html(nicknameInput);
+					if (bookmark.isAutojoin()) {
+						autojoinInput.get()[0].checked = true;
+					} else {
+						autojoinInput.get()[0].checked = false;
+					}
+					$("td:eq(3)", trNode).html(autojoinInput);
+					$(buttons[0]).hide();
+					$(buttons[1]).hide();
+					$(buttons[2]).hide();
+					$(buttons[3]).show();
+					$(buttons[4]).show();
+				},
+				__saveFun = function(event) {
+					var that = $(this),
+						trNode = that.parent().parent(),
+						buttons = $("button", trNode),
+						bookmark = new Bookmark({
+							tag: $("input[name='tag']", trNode).val(),
+							roomJid: $("td:eq(1)", trNode).text(),
+							nickname: $("input[name='nickname']", trNode).val(),
+							autojoin: $("input[name='autojoin']", trNode).get()[0].checked
+						});
+					__blockElement(bookmarkDialog);
+					eventProcessor.triggerEvent("service_groupChat_updateBookmark", [bookmark]);
+				},
+				__returnFun = function(event) {
+					var that = $(this),
+						trNode = that.parent().parent(),
+						bookmark = trNode.data("bookmark"),
+						buttons = $("button", trNode);
+					$("td:eq(0)", trNode).html(bookmark.getTag());
+					$("td:eq(1)", trNode).html(bookmark.getRoomJid());
+					$("td:eq(2)", trNode).html(bookmark.getNickname());
+					$("td:eq(3)", trNode).html(bookmark.isAutojoin() ? "是" : "否");
+					$(buttons[0]).show();
+					$(buttons[1]).show();
+					$(buttons[2]).show();
+					$(buttons[3]).hide();
+					$(buttons[4]).hide();
+				};
+			for (i = bookmarks.length; i--;) {
+				trNode = $("<tr jid='" + bookmarks[i].getRoomJid() + "'></tr>").data("bookmark", bookmarks[i]);
+				trNode.append("<td>" + bookmarks[i].getTag() + "</td>");
+				trNode.append("<td>" + bookmarks[i].getRoomJid() + "</td>");
+				trNode.append("<td>" + bookmarks[i].getNickname() + "</td>");
+				if (bookmarks[i].isAutojoin()) {
+					trNode.append("<td>是</td>");
+				} else {
+					trNode.append("<td>否</td>");
+				}
+				tdNode = $("<td></td>");
+				btnNode = $("<button class='btn btn-success'>加入</button>");
+				btnNode.bind("click", __joinFun);
+				tdNode.append(btnNode);
+
+				btnNode = $("<button class='btn btn-primary'>修改</button>");
+				btnNode.bind("click", __modifyFun);
+				tdNode.append(btnNode);
+
+				btnNode = $("<button class='btn btn-danger'>删除</button>");
+				btnNode.bind("click", __deleteFun);
+				tdNode.append(btnNode);
+
+				btnNode = $("<button style='display:none' class='btn btn-success'>保存</button>");
+				btnNode.bind("click", __saveFun);
+				tdNode.append(btnNode);
+
+				btnNode = $("<button style='display:none' class='btn btn-primary'>返回</button>");
+				btnNode.bind("click", __returnFun);
+				tdNode.append(btnNode);
+
+				trNode.append(tdNode);
+				tbody.append(trNode);
+			}
+			__unBlockElement(bookmarkDialog);
+		},
+		viewer_deletedBookmark: function(event) {
+			__noticeSuccess("移除书签成功");
+			bookmarkDialog.dialog("close").dialog("open");
+		},
+		viewer_updatedBookmark: function(event, bookmark) {
+			var trNode = $("table tbody tr[jid='" + bookmark.getRoomJid() + "']", bookmarkDialog),
+				buttons = $("button", trNode);
+			trNode.data("bookmark", bookmark);
+			$("td:eq(0)", trNode).html(bookmark.getTag());
+			$("td:eq(1)", trNode).html(bookmark.getRoomJid());
+			$("td:eq(2)", trNode).html(bookmark.getNickname());
+			$("td:eq(3)", trNode).html(bookmark.isAutojoin() ? "是" : "否");
+			$(buttons[0]).show();
+			$(buttons[1]).show();
+			$(buttons[2]).show();
+			$(buttons[3]).hide();
+			$(buttons[4]).hide();
+			__unBlockElement(bookmarkDialog);
 		}
 	});
 }(jQuery, window));

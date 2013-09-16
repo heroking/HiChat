@@ -4,17 +4,32 @@
     <head>
         <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
         <title>
-            HiChat
+            HiChat -- 基于JSJaC的即时通信终端
         </title>
         <link rel="stylesheet" type="text/css" href="bootstrap/css/flatstrap.min.css"/>
-        <link rel="stylesheet" type="text/css" href="cikonss/cikonss.css"/>
         <link rel="stylesheet" type="text/css" href="alertify/themes/alertify.core.css"/>
         <link rel="stylesheet" type="text/css" href="alertify/themes/alertify.bootstrap.css"/>
         <link rel="stylesheet" type="text/css" href="jquery-ui-bootstrap/css/custom-theme/jquery-ui-1.10.0.custom.css"/>
         <link rel="stylesheet" type="text/css" href="tipped/tipped.css" />
         <link rel="stylesheet" type="text/css" href="HiChat.css">
+        <script type="text/javascript" src="jquery-1.9.1.js"></script>
+        <script type="text/javascript" src="jquery-block-ui/jquery-block-ui.js"></script>
     </head>
     <body>
+        <script type="text/javascript">
+          $.blockUI({
+            message : "正在初始化，请稍后...",
+            css: { 
+                border: 'none', 
+                padding: '15px', 
+                backgroundColor: '#000', 
+                '-webkit-border-radius': '10px', 
+                '-moz-border-radius': '10px', 
+                opacity: 0.5, 
+                color: '#fff' 
+            } 
+          });
+        </script>
         <div class="g-bd1 f-cb">
             <div class="g-sd1 s-sd" id="sideBar">
                 <div id="loginDiv" style="padding:10px 10px 10px 10px">
@@ -78,6 +93,7 @@
                         <div style="margin-left:10px;margin-right:10px">
                             <span id="createRoomBtn" class="menuBtns"><img alt='创建房间' src='resources/createRoomIcon.png'></span>
                             <span id="joinRoomBtn" class="menuBtns"><img alt='加入房间' src='resources/joinRoomIcon.png'></span>
+                            <span id="bookmarkBtn" class="menuBtns"><img alt='我的书签' src='resources/bookmarkIcon.png'></span>
                         </div>
                     </div>
                     <div style="width:100%;position:absolute;bottom:20px;right:0;">
@@ -108,7 +124,7 @@
                             </tr>
                             <tr>
                               <td>密码</td>
-                              <td><input type="password" placeholder="请填写密码" name="password"/></td>
+                              <td><input type="password" id="regPass" placeholder="请填写密码" name="password"/></td>
                             </tr>
                             <tr>
                               <td>确认密码</td>
@@ -124,80 +140,140 @@
                     <!-- /注册对话框 -->
                     <!-- 显示个人名片的对话框 -->
                     <div id="vCardDialog" class="dialog">
-                        <table class="vCardTb">
-                            <tbody>
-                                <tr itemtype='nickname'>
-                                    <td>
-                                        昵称：
-                                    </td>
-                                    <td></td>
-                                    <td>
-                                        <input type="text" name='nickname' value='' placeholder='昵称'>
-                                    </td>
+                      <form id="vCardForm">
+                        <div id="vCardTabs">
+                          <ul>
+                            <li><a href="#vCard_selfTab">个人</a></li>
+                            <li><a href="#vCard_workTab">商务</a></li>
+                            <li><a href="#vCard_homeTab">家庭</a></li>
+                            <li><a href="#vCard_avatarTab">头像</a></li> 
+                          </ul>
+                          <div id="vCard_selfTab">
+                            <table class="vCardTb">
+                              <tbody>
+                                <tr>
+                                  <td>名字</td>
+                                  <td><input type="text" name="name" placeholder="名字"/></td>
                                 </tr>
-                                <tr itemtype='sex'>
-                                    <td>
-                                        性别：
-                                    </td>
-                                    <td></td>
-                                    <td>
-                                        <select>
-                                            <option value='male'>
-                                                男
-                                            </option>
-                                            <option value='female'>
-                                                女
-                                            </option>
-                                        </select>
-                                    </td>
+                                <tr>
+                                  <td>中间名</td>
+                                  <td><input type="text" name="middleName" placeholder="中间名"/></td>
                                 </tr>
-                                <tr itemtype='bday'>
-                                    <td>
-                                        生日：
-                                    </td>
-                                    <td></td>
-                                    <td>
-                                        <input type="date" name='bday' value='' placeholder='生日'>
-                                    </td>
+                                <tr>
+                                  <td>姓</td>
+                                  <td><input type="text" name="familyName" placeholder="姓"/></td>
                                 </tr>
-                                <tr itemtype='email'>
-                                    <td>
-                                        邮箱：
-                                    </td>
-                                    <td></td>
-                                    <td>
-                                        <input type="text" name='email' value='' placeholder='邮箱'>
-                                    </td>
+                                <tr>
+                                  <td>昵称</td>
+                                  <td><input type="text" name="nickname" placeholder="昵称"/></td>
                                 </tr>
-                                <tr itemtype='tele'>
-                                    <td>
-                                        手机：
-                                    </td>
-                                    <td></td>
-                                    <td>
-                                        <input type="text" name='tele' value='' placeholder='手机号码'>
-                                    </td>
+                                <tr>
+                                  <td>电子邮件</td>
+                                  <td><input type="text" name="email" placeholder="电子邮件"/></td>
                                 </tr>
-                                <tr itemtype='desc'>
-                                    <td>
-                                        自我描述：
-                                    </td>
-                                    <td></td>
-                                    <td>
-                                        <textarea style="height:200px" name='desc'></textarea>
-                                    </td>
+                              </tbody>
+                            </table>
+                          </div>
+                          <div id="vCard_workTab">
+                            <table class="vCardTb">
+                              <tbody>
+                                <tr>
+                                  <td>公司</td>
+                                  <td><input type="text" name="company" placeholder="公司"/></td>
+                                  <td>职称</td>
+                                  <td><input type="text" name="title" placeholder="职称"/></td>
                                 </tr>
-                                <tr itemtype='photo'>
-                                    <td>
-                                        个人头像：
-                                    </td>
-                                    <td></td>
-                                    <td>
-                                        <input style="width:220px" type="file" name='image' id='selfPhotoInput' placeholder='个人头像'>
-                                    </td>
+                                <tr>
+                                  <td>街道地址</td>
+                                  <td><input type="text" name="work_street" placeholder="街道地址"/></td>
+                                  <td>部门</td>
+                                  <td><input type="text" name="department" placeholder="部门"/></td>
                                 </tr>
-                            </tbody>
-                        </table>
+                                <tr>
+                                  <td>城市</td>
+                                  <td><input type="text" name="work_city" placeholder="城市"/></td>
+                                  <td>电话</td>
+                                  <td><input type="text" name="work_phone" placeholder="电话"/></td>
+                                </tr>
+                                <tr>
+                                  <td>省</td>
+                                  <td><input type="text" name="work_province" placeholder="省"/></td>
+                                  <td>传真</td>
+                                  <td><input type="text" name="work_fax" placeholder="传真"/></td>
+                                </tr>
+                                <tr>
+                                  <td>邮政编码</td>
+                                  <td><input type="text" name="work_postCode" placeholder="邮政编码"/></td>
+                                  <td>传呼机</td>
+                                  <td><input type="text" name="work_bleeper" placeholder="传呼机"/></td>
+                                </tr>
+                                <tr>
+                                  <td>国家</td>
+                                  <td><input type="text" name="work_country" placeholder="国家"/></td>
+                                  <td>移动电话</td>
+                                  <td><input type="text" name="work_telephone" placeholder="移动电话"/></td>
+                                </tr>
+                                <tr>
+                                  <td></td>
+                                  <td></td>
+                                  <td>网页</td>
+                                  <td><input type="text" name="webSite" placeholder="网页"/></td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                          <div id="vCard_homeTab">
+                            <table class="vCardTb">
+                              <tbody>
+                                <tr>
+                                  <td>街道地址</td>
+                                  <td><input type="text" name="home_street" placeholder="街道地址"/></td>
+                                  <td>电话</td>
+                                  <td><input type="text" name="home_phone" placeholder="电话"/></td>
+                                </tr>
+                                <tr>
+                                  <td>城市</td>
+                                  <td><input type="text" name="home_city" placeholder="城市"/></td>
+                                  <td>传真</td>
+                                  <td><input type="text" name="home_fax" placeholder="传真"/></td>
+                                </tr>
+                                <tr>
+                                  <td>省</td>
+                                  <td><input type="text" name="home_province" placeholder="省"/></td>
+                                  <td>传呼机</td>
+                                  <td><input type="text" name="home_bleeper" placeholder="传呼机"/></td>
+                                </tr>
+                                <tr>
+                                  <td>邮政编码</td>
+                                  <td><input type="text" name="home_postCode" placeholder="邮政编码"/></td>
+                                  <td>移动电话</td>
+                                  <td><input type="text" name="home_telephone" placeholder="移动电话"/></td>
+                                </tr>
+                                <tr>
+                                  <td>国家</td>
+                                  <td><input type="text" name="home_country" placeholder="国家"/></td>
+                                  <td></td>
+                                  <td></td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                          <div id="vCard_avatarTab">
+                            <table class="vCardTb">
+                              <tbody>
+                                <tr>
+                                  <td>个人头像</td>
+                                  <td><input type="file" name="avatar"/></td>
+                                </tr>
+                                <tr>
+                                  <td>预览</td>
+                                  <td><img id="avatarPreview" width=60 height=60 src="resources/defaultHeader.jpg"/></td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </form>
                     </div><!-- 订阅对话框 -->
                     <div id="subscribeDialog" class="dialog">
                         <table>
@@ -364,6 +440,7 @@
                         <li class='u-admin' affiliation="owner" name="changeConfig">修改房间配置</li>
                         <li class='u-admin' affiliation='owner' name="deleteRoom">删除房间</li>
                         <li style="font-size:120%">个人配置</li>
+                        <li class='u-user' name="addBookmark">加入书签</li>
                         <li class='u-user' name="changeNickname">修改昵称</li>
                         <li class='u-user' name="changeStatus">更改状态</li>
                       </ul>
@@ -419,50 +496,194 @@
                     <!-- /好友分组菜单栏 -->
                     <!-- 好友名片对话框 -->
                     <div id="rosterVCardDialog" class="dialog">
-                      <table>
+                      <form id="otherVCardForm">
+                        <div id="otherVCardTabs">
+                          <ul>
+                            <li><a href="#otherVCard_selfTab">个人</a></li>
+                            <li><a href="#otherVCard_workTab">商务</a></li>
+                            <li><a href="#otherVCard_homeTab">家庭</a></li>
+                            <li><a href="#otherVCard_avatarTab">头像</a></li> 
+                          </ul>
+                          <div id="otherVCard_selfTab">
+                            <table class="vCardTb">
+                              <tbody>
+                                <tr>
+                                  <td>名字</td>
+                                  <td vType="name"></td>
+                                </tr>
+                                <tr>
+                                  <td>中间名</td>
+                                  <td vType="middleName"></td>
+                                </tr>
+                                <tr>
+                                  <td>姓</td>
+                                  <td vType="familyName"></td>
+                                </tr>
+                                <tr>
+                                  <td>昵称</td>
+                                  <td vType="nickname"></td>
+                                </tr>
+                                <tr>
+                                  <td>电子邮件</td>
+                                  <td vType="email"></td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                          <div id="otherVCard_workTab">
+                            <table class="vCardTb">
+                              <tbody>
+                                <tr>
+                                  <td>公司</td>
+                                  <td vType="company"></td>
+                                  <td>职称</td>
+                                  <td vType="title"></td>
+                                </tr>
+                                <tr>
+                                  <td>街道地址</td>
+                                  <td vType="work_street"></td>
+                                  <td>部门</td>
+                                  <td vType="department"></td>
+                                </tr>
+                                <tr>
+                                  <td>城市</td>
+                                  <td vType="work_city"></td>
+                                  <td>电话</td>
+                                  <td vType="work_phone"></td>
+                                </tr>
+                                <tr>
+                                  <td>省</td>
+                                  <td vType="work_province"></td>
+                                  <td>传真</td>
+                                  <td vType="work_fax"></td>
+                                </tr>
+                                <tr>
+                                  <td>邮政编码</td>
+                                  <td vType="work_postCode"></td>
+                                  <td>传呼机</td>
+                                  <td vType="work_bleeper"></td>
+                                </tr>
+                                <tr>
+                                  <td>国家</td>
+                                  <td vType="work_country"></td>
+                                  <td>移动电话</td>
+                                  <td vType="work_telephone"></td>
+                                </tr>
+                                <tr>
+                                  <td></td>
+                                  <td></td>
+                                  <td>网页</td>
+                                  <td vType="webSite"></td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                          <div id="otherVCard_homeTab">
+                            <table class="vCardTb">
+                              <tbody>
+                                <tr>
+                                  <td>街道地址</td>
+                                  <td vType="home_street"></td>
+                                  <td>电话</td>
+                                  <td vType="home_phone"></td>
+                                </tr>
+                                <tr>
+                                  <td>城市</td>
+                                  <td vType="home_city"></td>
+                                  <td>传真</td>
+                                  <td vType="home_fax"></td>
+                                </tr>
+                                <tr>
+                                  <td>省</td>
+                                  <td vType="home_provice"></td>
+                                  <td>传呼机</td>
+                                  <td vType="home_bleeper"></td>
+                                </tr>
+                                <tr>
+                                  <td>邮政编码</td>
+                                  <td vType="home_postCode"></td>
+                                  <td>移动电话</td>
+                                  <td vType="home_telephone"></td>
+                                </tr>
+                                <tr>
+                                  <td>国家</td>
+                                  <td vType="home_country"></td>
+                                  <td></td>
+                                  <td></td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                          <div id="otherVCard_avatarTab">
+                            <table class="vCardTb">
+                              <tbody>
+                                <tr></tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </form>
+                    </div>
+                    <!-- /好友名片对话框 -->
+                    <!-- 书签配置对话框 -->
+                    <div id="addBookmarkDialog" class="dialog">
+                      <form id="addBookmarkForm">
+                        <table>
+                          <tbody>
+                            <tr>
+                              <td>房间名称</td>
+                              <td id="bookmarkRoomName"></td>
+                            </tr>
+                            <tr>
+                              <td>房间标签</td>
+                              <td><input type="text" name="tag" placeholder="房间标签"/></td>
+                            </tr>
+                            <tr>
+                              <td>登录时自动进入</td>
+                              <td><input type="checkbox" name="autojoin"/></td>
+                            </tr>
+                            <tr>
+                              <td>使用昵称</td>
+                              <td><input type="text" name="nickname" placeholder="登陆使用昵称"/></td>
+                            </tr>
+                            <tr>
+                              <td colspan=2><button type="submit" class="btn btn-success">保存</button></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </form>
+                    </div>
+                    <!-- /书签配置对话框 -->
+                    <!-- 书签对话框 -->
+                    <div id="bookmarkDialog" class="dialog">
+                      <table style="table-layout:automatic;">
+                        <thead>
+                          <tr>
+                            <th width = 100>书签名称</th>
+                            <th width = 150>房间ID</th>
+                            <th width = 100>昵称</th>
+                            <th width = 100>登录时加入</th>
+                            <th width = 150>操作</th>
+                          </tr>
+                        </thead>
                         <tbody>
-                          <tr>
-                            <td>JID</td>
-                            <td name="jid"></td>
-                          </tr>
-                          <tr>
-                            <td>昵称</td>
-                            <td name="nickname"></td>
-                          </tr>
-                          <tr>
-                            <td>性别</td>
-                            <td name="sex"></td>
-                          </tr>
-                          <tr>
-                            <td>生日</td>
-                            <td name="birthday"></td>
-                          </tr>
-                          <tr>
-                            <td>邮箱</td>
-                            <td name="email"></td>
-                          </tr>
-                          <tr>
-                            <td>手机</td>
-                            <td name="telephone"></td>
-                          </tr>
-                          <tr>
-                            <td>描述</td>
-                            <td name="desc"></td>
-                          </tr>
-                          <tr>
-                            <td>个人头像</td>
-                            <td><img width=60 height=60 src="resources/defaultHeader.jpg"></td>
-                          </tr>
                         </tbody>
                       </table>
                     </div>
-                    <!-- /好友名片对话框 -->
+                    <!-- /书签对话框 -->
+                    <!-- 主页面右键菜单 -->
+                    <!-- <div id="pageContextMenu" class="m-ctm">
+                      <ul>
+                        <li value="logout">登出</li>
+                      </ul>
+                    </div> -->
+                    <!-- /主页面右键菜单 -->
                 </div>
             </div>
         </div>
-        <script type="text/javascript" src="jquery-1.9.1.js"></script>
+        <script type="text/javascript" src="jquery-plugin-validation/jquery.validate.min.js"></script>
+        <script type="text/javascript" src="jquery-plugin-validation/messages_zh.js"></script>
         <script type="text/javascript" src="tipped/tipped.js"></script>
-        <script type="text/javascript" src="ajaxfileupload.js"></script>
         <script type="text/javascript" src="bootstrap/js/bootstrap.min.js"></script>
         <script type="text/javascript" src="alertify/alertify.min.js"></script>
         <script type="text/javascript" src="jquery-ui-bootstrap/js/jquery-ui-1.9.2.custom.min.js"></script>
@@ -470,9 +691,14 @@
         <script type="text/javascript" src="HiChatUtils.js"></script>
         <script type="text/javascript" src="HiChatConfig.js"></script>
         <script type="text/javascript" src="HiChatModel.js"></script>
+        <script type="text/javascript" src="HiChatXMLFrame.js"></script>
+        <script type="text/javascript" src="HiChatXMLHelper.js"></script>
         <script type="text/javascript" src="HiChatService.js"></script>
         <script type="text/javascript" src="HiChatConnector.js"></script>
         <script type="text/javascript" src="HiChatViewer.js"></script>
         <script type="text/javascript" src="HiChatMain.js"></script>
+        <script type="text/javascript">
+          $.unblockUI();
+        </script>
     </body>
 </html>

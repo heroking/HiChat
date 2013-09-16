@@ -22,7 +22,7 @@ HICHAT.utils.eventProcessor = (function($, window) {
 			var eName;
 			if (typeof events === 'string') {
 				eventListener.bind(events, handler);
-			} else if(typeof events === 'object'){
+			} else if (typeof events === 'object') {
 				for (eName in events) {
 					if (Object.prototype.hasOwnProperty.apply(events, [eName])) {
 						if (typeof events[eName] === 'function') {
@@ -40,24 +40,32 @@ HICHAT.utils.eventProcessor = (function($, window) {
 }(jQuery, window));
 
 jQuery.fn.extend({
-  slideRightShow: function(callback) {
-    return this.each(function() {
-        $(this).show('slide', {direction: 'right'}, 1000, callback);
-    });
-  },
-  slideLeftHide: function(callback) {
-    return this.each(function() {
-      $(this).hide('slide', {direction: 'left'}, 1000, callback);
-    });
-  },
-  slideRightHide: function(callback) {
-    return this.each(function() {
-      $(this).hide('slide', {direction: 'right'}, 1000, callback);
-    });
-  },
-  slideLeftShow: function(callback) {
-    return this.each(function() {
-      $(this).show('slide', {direction: 'left'}, 1000, callback);
-    });
-  }
+	slideRightShow: function(callback) {
+		return this.each(function() {
+			$(this).show('slide', {
+				direction: 'right'
+			}, 1000, callback);
+		});
+	},
+	slideLeftHide: function(callback) {
+		return this.each(function() {
+			$(this).hide('slide', {
+				direction: 'left'
+			}, 1000, callback);
+		});
+	},
+	slideRightHide: function(callback) {
+		return this.each(function() {
+			$(this).hide('slide', {
+				direction: 'right'
+			}, 1000, callback);
+		});
+	},
+	slideLeftShow: function(callback) {
+		return this.each(function() {
+			$(this).show('slide', {
+				direction: 'left'
+			}, 1000, callback);
+		});
+	}
 });

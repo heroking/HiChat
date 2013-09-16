@@ -2,17 +2,23 @@ HICHAT.namespace("HICHAT.connector");
 HICHAT.connector = (function($, window) {
 	var eventProcessor = HICHAT.utils.eventProcessor,
 		config = HICHAT.config,
+		XMLHelper = HICHAT.XMLHelper,
 		User = HICHAT.model.SimpleUser,
 		GroupUser = HICHAT.model.GroupChatUser,
 		Friend = HICHAT.model.Friend,
 		VCard = HICHAT.model.VCard,
+		WorkInfo = HICHAT.model.WorkInfo,
+		HomeInfo = HICHAT.model.HomeInfo,
+		PersonalInfo = HICHAT.model.PersonalInfo,
+		HeadPortrait = HICHAT.model.HeadPortrait,
 		Presence = HICHAT.model.Presence,
 		Room = HICHAT.model.Room,
 		RoomUser = HICHAT.model.RoomUser,
 		OutcastUser = HICHAT.model.OutcastUser,
-		HeadPortrait = HICHAT.model.HeadPortrait,
 		Message = HICHAT.model.Message,
 		GroupMessage = HICHAT.model.GroupMessage,
+		ChatState = HICHAT.model.ChatState,
+		Bookmark = HICHAT.model.Bookmark,
 		con,
 		handleModule = (function() {
 			var waste,
@@ -77,22 +83,36 @@ HICHAT.connector = (function($, window) {
 					console.log(aPresence.xml());
 				},
 				__handleError = function(aPresence) {
-					console.log(aPresence.xml());
+					console.log("handleError : ", aPresence.xml());
+					var errorCode = $("error", aPresence.getDoc()).attr("code"),
+						from = aPresence.getFrom();
+					switch (errorCode) {
+						case "404":
+							eventProcessor.triggerEvent("service_noticeError", ["未找到" + from]);
+							break;
+						default:
+							eventProcessor.triggerEvent("service_noticeError", ["发生错误，请稍后再试！"]);
+					}
 				};
 			return {
 				handleIQ: function(aIQ) {
 					console.log("handleIQ:" + aIQ.xml());
 				},
 				handleMessage: function(aJSJaCPacket) {
+					console.log(aJSJaCPacket.xml());
 					var message,
-						delay;
+						delay,
+						$_message = $(aJSJaCPacket.getDoc()),
+						chatState,
+						user;
 					try {
 						if (aJSJaCPacket.getType() === "groupchat") {
+							user = new RoomUser(aJSJaCPacket.getFrom());
 							message = new GroupMessage({
-								groupUser: new RoomUser(aJSJaCPacket.getFrom()),
+								groupUser: user,
 								message: aJSJaCPacket.getBody().htmlEnc()
 							});
-							delay = $("delay", aJSJaCPacket.xml());
+							delay = $("delay", $_message);
 							if (delay.length === 0) {
 								message.setTime(new Date().getTime());
 							} else {
@@ -100,22 +120,26 @@ HICHAT.connector = (function($, window) {
 							}
 							eventProcessor.triggerEvent("service_groupChat_recieveMsg", [message]);
 						} else {
-							message = new Message({
-								user: new User(aJSJaCPacket.getFrom()),
-								message: aJSJaCPacket.getBody().htmlEnc()
-							});
-							console.log(message);
-							delay = $("delay", aJSJaCPacket.xml());
-							if (delay.length === 0) {
-								message.setTime(new Date().getTime());
-							} else {
-								message.setTime(new Date(delay.attr("stamp")).getTime());
+							user = new User(aJSJaCPacket.getFrom());
+							if ($("body", $_message).length !== 0) {
+								message = new Message({
+									user: user,
+									message: aJSJaCPacket.getBody().htmlEnc()
+								});
+								delay = $("delay", $_message);
+								if (delay.length === 0) {
+									message.setTime(new Date().getTime());
+								} else {
+									message.setTime(new Date(delay.attr("stamp")).getTime());
+								}
+								eventProcessor.triggerEvent("service_privacyChat_recieveMsg", [message]);
 							}
-							eventProcessor.triggerEvent("service_privacyChat_recieveMsg", [message]);
+							if (true) {
+								//xep - 0085 聊天状态处理，未完成
+							}
 						}
 					} catch (e) {
 						console.dir(e);
-						console.log(e.getStack());
 					}
 
 				},
@@ -209,7 +233,9 @@ HICHAT.connector = (function($, window) {
 					username: username,
 					resource: config.resource,
 					pass: password,
-					register: isRegister
+					register: isRegister,
+					host: config.host,
+					port: config.port
 				};
 				con.connect(connArgs);
 			};
@@ -231,7 +257,8 @@ HICHAT.connector = (function($, window) {
 		}()),
 		VCardModule = (function() {
 			eventProcessor.bindEvent({
-				connector_vCard_getOtherVCard: function(event, user) {
+				connector_vCard_getOtherVCard: function(event, callbackName, user) {
+					console.log(user);
 					var aIQ = new JSJaCIQ(),
 						aVCardNode = aIQ.buildNode("vCard"),
 						destJid = user.toString();
@@ -242,31 +269,18 @@ HICHAT.connector = (function($, window) {
 					con.sendIQ(aIQ, {
 						error_handler: function() {},
 						result_handler: function(aJSJaCPacket) {
-							var vCardXml = $("vCard", $(aJSJaCPacket.xml())),
-								headPortrait = new HeadPortrait({
-									type: $("PHOTO TYPE", vCardXml).text(),
-									binval: $("PHOTO BINVAL", vCardXml).text()
-								}),
-								vCard = new VCard({
-									jid: user.getJid(),
-									domain: user.getDomain(),
-									nickname: $("NICKNAME", vCardXml).text(),
-									sex: $("SEX", vCardXml).text(),
-									bday: $("BDAY", vCardXml).text(),
-									email: $("EMAIL", vCardXml).text(),
-									tele: $("TELE", vCardXml).text(),
-									desc: $("DESC", vCardXml).text(),
-									headPortrait: headPortrait
-								}),
-								aPresence = new JSJaCPresence();
-							eventProcessor.triggerEvent("service_roster_getedOtherVCard", [vCard]);
+							var vCard = XMLHelper.parseVCard($("vCard", $(aJSJaCPacket.xml())).get()[0]);
+							vCard.setJid(user.getJid());
+							vCard.setDomain(user.getDomain());
+							aPresence = new JSJaCPresence();
+							eventProcessor.triggerEvent(callbackName, [vCard]);
 							aPresence.setTo(user.toString());
 							con.send(aPresence);
 						},
 						default_handler: function() {}
 					});
 				},
-				connector_vCard_getMyVCard: function(event, CBGetMyVCard) {
+				connector_vCard_getMyVCard: function(event, callbackName, CBGetMyVCard) {
 					var aIQ = new JSJaCIQ(),
 						aVCardNode = aIQ.buildNode("vCard");
 					aIQ.setType("get");
@@ -275,113 +289,31 @@ HICHAT.connector = (function($, window) {
 					con.sendIQ(aIQ, {
 						error_handler: function(e) {
 							console.log(e.xml());
-							//CBGetMyVCard.call(eventProcessor);
 						},
 						result_handler: function(aJSJaCPacket) {
-							var vCardXml = $("vCard", $(aJSJaCPacket.xml())),
-								headPortrait = new HeadPortrait({
-									type: $("PHOTO TYPE", vCardXml).text(),
-									binval: $("PHOTO BINVAL", vCardXml).text()
-								}),
-								vCard = new VCard({
-									jid: aJSJaCPacket.getToJID().getNode(),
-									domain: aJSJaCPacket.getToJID().getDomain(),
-									nickname: $("NICKNAME", vCardXml).text(),
-									sex: $("SEX", vCardXml).text(),
-									bday: $("BDAY", vCardXml).text(),
-									email: $("EMAIL", vCardXml).text(),
-									tele: $("TELE", vCardXml).text(),
-									desc: $("DESC", vCardXml).text(),
-									headPortrait: headPortrait
-								});
-							eventProcessor.triggerEvent("service_selfControl_getedMyVCard", [vCard]);
+							var vCard = XMLHelper.parseVCard($("vCard", $(aJSJaCPacket.xml())).get()[0]);
+							vCard.setJid(aJSJaCPacket.getToJID().getNode());
+							vCard.setDomain(aJSJaCPacket.getToJID().getDomain());
+							eventProcessor.triggerEvent(callbackName, [vCard]);
 						},
 						default_handler: function(e) {
 							console.log(e.xml());
-							//CBGetMyVCard.call(eventProcessor);
 						}
 					});
 				},
 				connector_vCard_updateMyVCard: function(event, vCard, CBDrawVCard) {
-					var aIQ = new JSJaCIQ(),
-						aVCardNode = aIQ.buildNode("vCard");
-					aIQ.setType("get");
-					aVCardNode.setAttribute('xmlns', NS_VCARD);
-					aIQ.appendNode(aVCardNode);
+					var aIQ = new JSJaCIQ();
+					aIQ.setType("set");
+					aIQ.appendNode(XMLHelper.buildVCard(vCard));
 					con.sendIQ(aIQ, {
-						error_handler: function() {
-							//CBGetMyVCard.call(eventProcessor);
+						error_handler: function(aJSJaCPacket) {
+							eventProcessor.triggerEvent("service_selfControl_updatedMyVCard", [false]);
 						},
 						result_handler: function(aJSJaCPacket) {
-							var vCardXml = $("vCard", $(aJSJaCPacket.xml())),
-								headPortrait = new HeadPortrait({
-									type: $("PHOTO TYPE", vCardXml).text(),
-									binval: $("PHOTO BINVAL", vCardXml).text()
-								}),
-								oldCard = new VCard({
-									jid: aJSJaCPacket.getToJID().getNode(),
-									domain: aJSJaCPacket.getToJID().getDomain(),
-									nickname: $("NICKNAME", vCardXml).text(),
-									sex: $("SEX", vCardXml).text(),
-									bday: $("BDAY", vCardXml).text(),
-									email: $("EMAIL", vCardXml).text(),
-									tele: $("TELE", vCardXml).text(),
-									desc: $("DESC", vCardXml).text(),
-									headPortrait: headPortrait
-								}),
-								aIQ = new JSJaCIQ(),
-								avcardNode = aIQ.buildNode("vCard"),
-								arg,
-								that = this,
-								photoNode;
-							if (typeof vCard.getNickname() !== "undefined") {
-								oldCard.setNickname(vCard.getNickname());
-							}
-							if (typeof vCard.getSex() !== "undefined") {
-								oldCard.setSex(vCard.getSex());
-							}
-							if (typeof vCard.getBirthday() !== "undefined") {
-								oldCard.setBirthday(vCard.getBirthday());
-							}
-							if (typeof vCard.getEmail() !== "undefined") {
-								oldCard.setEmail(vCard.getEmail());
-							}
-							if (typeof vCard.getTelephone() !== "undefined") {
-								oldCard.setTelephone(vCard.getTelephone());
-							}
-							if (typeof vCard.getDescription() !== "undefined") {
-								oldCard.setDescription(vCard.getDescription());
-							}
-							if (vCard.getHeadPortrait().isExist()) {
-								oldCard.setHeadPortrait(vCard.getHeadPortrait());
-							}
-							aIQ.setType("set");
-							avcardNode.setAttribute("xmlns", NS_VCARD);
-							avcardNode.appendChild(aIQ.buildNode("NICKNAME", oldCard.getNickname()));
-							avcardNode.appendChild(aIQ.buildNode("SEX", oldCard.getSex()));
-							avcardNode.appendChild(aIQ.buildNode("BDAY", oldCard.getBirthday()));
-							avcardNode.appendChild(aIQ.buildNode("EMAIL", oldCard.getEmail()));
-							avcardNode.appendChild(aIQ.buildNode("TELE", oldCard.getTelephone()));
-							avcardNode.appendChild(aIQ.buildNode("DESC", oldCard.getDescription()));
-							if (oldCard.getHeadPortrait().isExist()) {
-								photoNode = aIQ.buildNode("PHOTO");
-								photoNode.appendChild(aIQ.buildNode("TYPE", oldCard.getHeadPortrait().getType()));
-								photoNode.appendChild(aIQ.buildNode("BINVAL", oldCard.getHeadPortrait().getBinval()));
-								avcardNode.appendChild(photoNode);
-							}
-							aIQ.appendNode(avcardNode);
-							con.sendIQ(aIQ, {
-								error_handler: function() {
-									eventProcessor.triggerEvent("service_selfControl_updatedMyVCard", [false]);
-								},
-								result_handler: function(aJSJaCPacket) {
-									eventProcessor.triggerEvent("service_selfControl_updatedMyVCard", [true]);
-								},
-								default_handler: function() {}
-							});
+							eventProcessor.triggerEvent("service_selfControl_updatedMyVCard", [true]);
 						},
-						default_handler: function() {
-							//CBGetMyVCard.call(eventProcessor);
+						default_handler: function(aJSJaCPacket) {
+							eventProcessor.triggerEvent("service_selfControl_updatedMyVCard", [false]);
 						}
 					});
 				}
@@ -495,13 +427,11 @@ HICHAT.connector = (function($, window) {
 				connector_privacyChat_rosterRequest: function(event, CBRosterRequest) {
 					var aIQ = new JSJaCIQ();
 					aIQ.setType("get").setQuery(NS_ROSTER);
-					console.log(aIQ.xml());
 					con.sendIQ(aIQ, {
 						error_handler: function(aJSJaCPacket) {
 							console.log(aJSJaCPacket.xml());
 						},
 						result_handler: function(aIQ) {
-							console.log(aIQ.xml());
 							var friends = [];
 							$("item", aIQ.getQuery()).each(function() {
 								var that = $(this),
@@ -528,7 +458,6 @@ HICHAT.connector = (function($, window) {
 							console.log(aJSJaCPacket.xml());
 						}
 					});
-					console.log(aIQ.xml());
 				},
 				connector_privacyChat_removeRoster: function(event, user, CBRemoveRoster) {
 					var aIQ = new JSJaCIQ(),
@@ -560,7 +489,6 @@ HICHAT.connector = (function($, window) {
 						itemNode = aIQ.buildNode("item"),
 						groups = friend.getGroups(),
 						i;
-					console.log(groups);
 					itemNode.setAttribute("jid", friend.getVCard().toString());
 					itemNode.setAttribute("subscription", "both");
 					for (i = groups.length; i--;) {
@@ -622,6 +550,7 @@ HICHAT.connector = (function($, window) {
 					aMessage.setTo(room.toString()).setType("groupchat");
 					bodyNode.appendChild(document.createTextNode(msgBody));
 					aMessage.appendNode(bodyNode);
+					console.log(aMessage.xml());
 					con.send(aMessage);
 				},
 				connector_groupChat_createRoom: function(event, roomConfig, CBCreateRoom) {
@@ -720,7 +649,7 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				connector_groupChat_listRoom: function(event, groupChatResource, domain) {
+				connector_groupChat_listRoom: function(event, callbackName, groupChatResource, domain) {
 					var aIQ = new JSJaCIQ();
 					groupChatResource = groupChatResource || config.groupChatResource;
 					domain = domain || config.domain;
@@ -740,7 +669,7 @@ HICHAT.connector = (function($, window) {
 								newRoom.setRoomName(curNode.attr("name"));
 								roomList.push(newRoom);
 							}
-							eventProcessor.triggerEvent("service_groupChat_listedRoom", [roomList]);
+							eventProcessor.triggerEvent(callbackName, [roomList]);
 						}
 					});
 				},
@@ -748,27 +677,63 @@ HICHAT.connector = (function($, window) {
 
 				},
 				connector_groupChat_joinRoom: function(event, roomUser, password, CBJoinRoom) {
-					var aPresence = new JSJaCPresence(),
-						xNode = aPresence.buildNode("x"),
-						passwordNode;
-					aPresence.setTo(roomUser.toString());
-					xNode.setAttribute("xmlns", NS_MUC);
-					aPresence.appendNode(xNode);
-					if (typeof password === 'string') {
-						passwordNode = aPresence.buildNode("password");
-						passwordNode.appendChild(document.createTextNode(password));
-						xNode.appendChild(passwordNode);
-					}
-					con.send(aPresence, function(aJSJaCPacket) {
-						var $_presence = $(aJSJaCPacket.getDoc());
-						if (aJSJaCPacket.getType() === "error") {
-							__errorhandler(aJSJaCPacket);
-							return;
+					var aIQ = new JSJaCIQ();
+					aIQ.setTo(roomUser.toRoomString()).setType("get").setQuery(NS_DISCO_INFO);
+					con.sendIQ(aIQ, {
+						error_handler: function(aJSJaCPacket) {
+							console.log(aJSJaCPacket.xml());
+						},
+						result_handler: function(aJSJaCPacket) {
+							var $_roomInfo = $(aJSJaCPacket.getDoc()),
+								room,
+								curUsers = {};
+							room = new HICHAT.model.Room({
+								roomName: $("identity", $_roomInfo).attr("name"),
+								passwordprotected: $("feature[var$='passwordprotected']", $_roomInfo).length > 0 ? true : false,
+								hidden: $("feature[var$='hidden']", $_roomInfo).length > 0 ? true : false,
+								temporary: $("feature[var$='temporary']", $_roomInfo).length > 0 ? true : false,
+								open: $("feature[var$='open']", $_roomInfo).length > 0 ? true : false,
+								unmoderated: $("feature[var$='unmoderated']", $_roomInfo).length > 0 ? true : false,
+								nonanonymous: $("feature[var$='nonanonymous']", $_roomInfo).length > 0 ? true : false,
+								description: $("field[var$='description'] value", $_roomInfo).text(),
+								changesubject: Boolean($("field[var$='changesubject'] value", $_roomInfo).text()),
+								contactjid: $("field[var$='contactjid'] value", $_roomInfo).text(),
+								subject: $("field[var$='subject'] value", $_roomInfo).text(),
+								occupants: Number($("field[var$='occupants'] value", $_roomInfo).text()),
+								language: $("field[var$='lang'] value", $_roomInfo).text(),
+								logs: $("field[var$='logs'] value", $_roomInfo).text(),
+								pubsub: $("field[var$='pubsub'] value", $_roomInfo).text()
+							});
+							curUsers[roomUser.toString()] = roomUser;
+							room.setCurUsers(curUsers);
+							room.setJidFromString(aJSJaCPacket.getFrom());
+							roomUser.setRoom(room);
+
+							var aPresence = new JSJaCPresence(),
+								xNode = aPresence.buildNode("x"),
+								passwordNode;
+							aPresence.setTo(roomUser.toString());
+							xNode.setAttribute("xmlns", NS_MUC);
+							aPresence.appendNode(xNode);
+							if (typeof password === 'string') {
+								passwordNode = aPresence.buildNode("password");
+								passwordNode.appendChild(document.createTextNode(password));
+								xNode.appendChild(passwordNode);
+							}
+							con.send(aPresence, function(aJSJaCPacket) {
+								var $_presence = $(aJSJaCPacket.getDoc()),
+									aIQ = new JSJaCIQ(),
+									curUsers = {};
+								if (aJSJaCPacket.getType() === "error") {
+									__errorhandler(aJSJaCPacket);
+									return;
+								}
+								roomUser.setRole($("item", $_presence).attr("role"));
+								roomUser.setAffiliation($("item", $_presence).attr("affiliation"));
+								roomUser.setJid($("item", $_presence).attr("jid"));
+								eventProcessor.triggerEvent("service_groupChat_joinedRoom", [roomUser]);
+							});
 						}
-						roomUser.setRole($("item", $_presence).attr("role"));
-						roomUser.setAffiliation($("item", $_presence).attr("affiliation"));
-						roomUser.setJid($("item", $_presence).attr("jid"));
-						eventProcessor.triggerEvent("service_groupChat_joinedRoom", [roomUser]);
 					});
 				},
 				connector_groupChat_findRoom: function(event, groupChatResource, domain, CBFindRoom) {
@@ -787,37 +752,33 @@ HICHAT.connector = (function($, window) {
 						console.log(e.message);
 					}
 				},
-				connector_groupChat_getRoomInfo: function(event, room, CBGetRoomInfo) {
+				connector_groupChat_getRoomInfo: function(event, callbackName, room) {
 					var aIQ = new JSJaCIQ();
 					aIQ.setTo(room.toString()).setType("get").setQuery(NS_DISCO_INFO);
 					con.sendIQ(aIQ, {
 						error_handler: __errorhandler,
 						result_handler: function(aJSJaCPacket) {
-							try {
-								var $_roomInfo = $(aJSJaCPacket.getDoc()),
-									room;
-								room = new HICHAT.model.Room({
-									roomName: $("identity", $_roomInfo).attr("name"),
-									passwordprotected: $("feature[var$='passwordprotected']", $_roomInfo).length > 0 ? true : false,
-									hidden: $("feature[var$='hidden']", $_roomInfo).length > 0 ? true : false,
-									temporary: $("feature[var$='temporary']", $_roomInfo).length > 0 ? true : false,
-									open: $("feature[var$='open']", $_roomInfo).length > 0 ? true : false,
-									unmoderated: $("feature[var$='unmoderated']", $_roomInfo).length > 0 ? true : false,
-									nonanonymous: $("feature[var$='nonanonymous']", $_roomInfo).length > 0 ? true : false,
-									description: $("field[var$='description'] value", $_roomInfo).text(),
-									changesubject: Boolean($("field[var$='changesubject'] value", $_roomInfo).text()),
-									contactjid: $("field[var$='contactjid'] value", $_roomInfo).text(),
-									subject: $("field[var$='subject'] value", $_roomInfo).text(),
-									occupants: Number($("field[var$='occupants'] value", $_roomInfo).text()),
-									language: $("field[var$='lang'] value", $_roomInfo).text(),
-									logs: $("field[var$='logs'] value", $_roomInfo).text(),
-									pubsub: $("field[var$='pubsub'] value", $_roomInfo).text()
-								});
-								room.setJidFromString(aJSJaCPacket.getFrom());
-								eventProcessor.triggerEvent("service_groupChat_getedRoomInfo", [room]);
-							} catch (e) {
-								console.log(e.message);
-							}
+							var $_roomInfo = $(aJSJaCPacket.getDoc()),
+								room;
+							room = new HICHAT.model.Room({
+								roomName: $("identity", $_roomInfo).attr("name"),
+								passwordprotected: $("feature[var$='passwordprotected']", $_roomInfo).length > 0 ? true : false,
+								hidden: $("feature[var$='hidden']", $_roomInfo).length > 0 ? true : false,
+								temporary: $("feature[var$='temporary']", $_roomInfo).length > 0 ? true : false,
+								open: $("feature[var$='open']", $_roomInfo).length > 0 ? true : false,
+								unmoderated: $("feature[var$='unmoderated']", $_roomInfo).length > 0 ? true : false,
+								nonanonymous: $("feature[var$='nonanonymous']", $_roomInfo).length > 0 ? true : false,
+								description: $("field[var$='description'] value", $_roomInfo).text(),
+								changesubject: Boolean($("field[var$='changesubject'] value", $_roomInfo).text()),
+								contactjid: $("field[var$='contactjid'] value", $_roomInfo).text(),
+								subject: $("field[var$='subject'] value", $_roomInfo).text(),
+								occupants: Number($("field[var$='occupants'] value", $_roomInfo).text()),
+								language: $("field[var$='lang'] value", $_roomInfo).text(),
+								logs: $("field[var$='logs'] value", $_roomInfo).text(),
+								pubsub: $("field[var$='pubsub'] value", $_roomInfo).text()
+							});
+							room.setJidFromString(aJSJaCPacket.getFrom());
+							eventProcessor.triggerEvent(callbackName, [room]);
 						}
 					});
 				},
@@ -869,7 +830,7 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				connector_groupChat_kickoutUser: function(event, roomUser, reason, CBKickoutUser) {
+				connector_groupChat_kickout: function(event, roomUser, reason, CBKickoutUser) {
 					var aIQ = new JSJaCIQ(),
 						queryNode,
 						itemNode,
@@ -892,7 +853,7 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				connector_groupChat_outcastUser: function(event, roomUser, reason, actor, CBOutcastUser) {
+				connector_groupChat_outcast: function(event, roomUser, reason, actor, CBOutcastUser) {
 					var aIQ = new JSJaCIQ(),
 						queryNode,
 						itemNode,
@@ -921,7 +882,7 @@ HICHAT.connector = (function($, window) {
 						}
 					});
 				},
-				connector_groupChat_getOutcastList: function(event, room) {
+				connector_groupChat_getOutcastList: function(event, callbackName, room) {
 					var aIQ = new JSJaCIQ(),
 						querrNode,
 						itemNode;
@@ -944,11 +905,11 @@ HICHAT.connector = (function($, window) {
 								outcastUser = new User($_item.attr("jid"));
 								outcastUserList.push(outcastUser);
 							}
-							eventProcessor.triggerEvent("service_groupChat_getedOutcastList", [outcastUserList, roomJid]);
+							eventProcessor.triggerEvent(callbackName, [outcastUserList, roomJid]);
 						}
 					});
 				},
-				connector_groupChat_getOldNickInRoom: function(event, room) {
+				connector_groupChat_getOldNickInRoom: function(event, callbackName, room) {
 					var aIQ = new JSJaCIQ(),
 						queryNode;
 					aIQ.setTo(room.toString()).setType("get");
@@ -961,9 +922,9 @@ HICHAT.connector = (function($, window) {
 								$_identity = $("identity", aJSJaCPacket.getDoc());
 							if ($_identity.length > 0) {
 								$_identity = $($_identity[0]);
-								eventProcessor.triggerEvent("service_groupChat_getedOldNick", [$_iq.attr("from"), $_identity.attr("name")]);
+								eventProcessor.triggerEvent(callbackName, [$_iq.attr("from"), $_identity.attr("name")]);
 							} else {
-								eventProcessor.triggerEvent("service_groupChat_getedOldNick", [$_iq.attr("from")]);
+								eventProcessor.triggerEvent(callbackName, [$_iq.attr("from")]);
 							}
 						}
 					});
@@ -990,42 +951,141 @@ HICHAT.connector = (function($, window) {
 					aPresence.setTo(roomUser.toRoomString() + "/" + nickname);
 					con.send(aPresence);
 				},
-				connector_groupChat_addBookmark: function(event, tag, room, nickname, autojoin) {
+				connector_groupChat_addBookmark: function(event, bookmark) {
 					var aIQ = new JSJaCIQ(),
-						storageNode = aIQ.buildNode("storage"),
-						conferenceNode = aIQ.buildNode("conference"),
-						nickNode = aIQ.buildNode("nick", nickname),
-						pubsubNode = aIQ.buildNode("pubsub"),
-						publishNode = aIQ.buildNode("publish"),
-						itemNode = aIQ.buildNode("item"),
-						puboptNode = aIQ.buildNode("publish-options");
-					conferenceNode.setAttribute("name", tag);
-					if (autojoin) {
-						conferenceNode.setAttribute("autojoin", "true");
-					}
-					conferenceNode.setAttribute("jid", room.toString());
-					conferenceNode.appendChild(nickNode);
-					storageNode.setAttribute("xmlns", "storage:bookmarks");
-					storageNode.appendChild(conferenceNode);
-
-					itemNode.setAttribute("id", "current");
-					itemNode.appendChild(storageNode);
-					publishNode.setAttribute("node", "storage:bookmarks");
-					pubsubNode.appendChild(itemNode);
-
-					puboptNode = $("<publish-options><x xmlns='jabber:x:data' type='submit'><field var='FORM_TYPE' type='hidden'><value>http://jabber.org/protocol/pubsub#publish-options</value></field><field var='pubsub#persist_items'><value>true</value></field><field var='pubsub#access_model'><value>whitelist</value></field></x></publish-options>").get()[0];
-					pubsubNode.setAttribute("xmlns", NS_PUBSUB);
-					pubsubNode.appendChild(publishNode);
-					pubsubNode.appendChild(puboptNode);
-					aIQ.setType("set");
-					aIQ.appendNode(pubsubNode);
-					console.log(aIQ.getDoc());
+						queryNode = aIQ.setType("get").setQuery(NS_PRIVATE);
+					queryNode.appendChild(XMLHelper.buildGetBookmark());
 					con.sendIQ(aIQ, {
 						error_handler: function(aJSJaCPacket) {
 							console.log(aJSJaCPacket.xml());
 						},
 						result_handler: function(aJSJaCPacket) {
+							var $_storage = $("storage", aJSJaCPacket.getDoc()),
+								aIQ = new JSJaCIQ(),
+								queryNode = aIQ.setType("set").setQuery(NS_PRIVATE);
+							if ($("conference[jid='" + bookmark.getRoomJid() + "']", $_storage).length !== 0) {
+								eventProcessor.triggerEvent("service_groupChat_addedBookmarkFailed", ["该房间的书签已经存在"]);
+								return;
+							}
+							$_storage.append($("conference", XMLHelper.buildAddBookmark({
+								tag: bookmark.getTag(),
+								autojoin: bookmark.isAutojoin(),
+								roomJid: bookmark.getRoomJid(),
+								nickname: bookmark.getNickname()
+							})));
+							queryNode.appendChild($_storage.get()[0]);
+							con.sendIQ(aIQ, {
+								error_handler: function(aJSJaCPacket) {
+									console.log(aJSJaCPacket.xml());
+								},
+								result_handler: function(aJSJaCPacket) {
+									eventProcessor.triggerEvent("service_groupChat_addedBookmark");
+								},
+								default_handler: function(aJSJaCPacket) {
+									console.log(aJSJaCPacket.xml());
+								}
+							});
+						},
+						default_handler: function(aJSJaCPacket) {
 							console.log(aJSJaCPacket.xml());
+						}
+					});
+				},
+				connector_groupChat_getBookmarks: function(event, callbackName) {
+					var aIQ = new JSJaCIQ(),
+						queryNode = aIQ.setType("get").setQuery(NS_PRIVATE);
+					queryNode.appendChild(XMLHelper.buildGetBookmark());
+					con.sendIQ(aIQ, {
+						error_handler: function(aJSJaCPacket) {
+							console.log(aJSJaCPacket.xml());
+						},
+						result_handler: function(aJSJaCPacket) {
+							var conferenceNodes = $("conference", aJSJaCPacket.getDoc()),
+								i,
+								bookmarks = [],
+								cur;
+							for (i = conferenceNodes.length; i--;) {
+								cur = $(conferenceNodes[i]);
+								bookmarks.push(new Bookmark({
+									tag: cur.attr("name"),
+									autojoin: cur.attr("autojoin") === "true" ? true : false,
+									roomJid: cur.attr("jid"),
+									nickname: $("nick", cur).text()
+								}));
+							}
+							eventProcessor.triggerEvent(callbackName, [bookmarks]);
+						},
+						default_handler: function(aJSJaCPacket) {
+							console.log(aJSJaCPacket.xml());
+						}
+					});
+				},
+				connector_groupChat_deleteBookmark: function(event, roomJid) {
+					var aIQ = new JSJaCIQ(),
+						queryNode = aIQ.setType("get").setQuery(NS_PRIVATE);
+					queryNode.appendChild(XMLHelper.buildGetBookmark());
+					con.sendIQ(aIQ, {
+						error_handler: function(aJSJaCPacket) {
+							console.log(aJSJaCPacket.xml());
+						},
+						result_handler: function(aJSJaCPacket) {
+							var $_storage = $("storage", aJSJaCPacket.getDoc()),
+								aIQ = new JSJaCIQ(),
+								queryNode = aIQ.setType("set").setQuery(NS_PRIVATE);
+							$("conference[jid='" + roomJid + "']", $_storage).remove();
+							queryNode.appendChild($_storage.get()[0]);
+							con.sendIQ(aIQ, {
+								error_handler: function(aJSJaCPacket) {
+									console.log(aJSJaCPacket.xml());
+								},
+								result_handler: function(aJSJaCPacket) {
+									eventProcessor.triggerEvent("service_groupChat_deletedBookmark");
+								},
+								default_handler: function(aJSJaCPacket) {
+									console.log(aJSJaCPacket.xml());
+								}
+							});
+						},
+						default_handler: function(aJSJaCPacket) {
+							console.log(aJSJaCPacket.xml());
+						}
+					});
+				},
+				connector_groupChat_updateBookmark: function(event, bookmark) {
+					var aIQ = new JSJaCIQ(),
+						queryNode = aIQ.setType("get").setQuery(NS_PRIVATE);
+					queryNode.appendChild(XMLHelper.buildGetBookmark());
+					con.sendIQ(aIQ, {
+						error_handler: function(aJSJaCPacket) {
+							console.log(aJSJaCPacket.xml());
+						},
+						result_handler: function(aJSJaCPacket) {
+							var $_storage = $("storage", aJSJaCPacket.getDoc()),
+								aIQ = new JSJaCIQ(),
+								queryNode = aIQ.setType("set").setQuery(NS_PRIVATE),
+								conferenceNode;
+							conferenceNode = $("conference[jid='" + bookmark.getRoomJid() + "']", $_storage);
+							if (conferenceNode.length === 0) {
+								/*不存在*/
+								return;
+							}
+							conferenceNode.attr("jid", bookmark.getRoomJid()).attr("name", bookmark.getTag()).attr("autojoin", bookmark.isAutojoin() ? "true" : "false");
+							if ($("nick", conferenceNode).length === 0) {
+								conferenceNode.append($("<nick></nick>"));
+								$("nick", conferenceNode).text(bookmark.getNickname());
+							}
+							queryNode.appendChild($_storage.get()[0]);
+							con.sendIQ(aIQ, {
+								error_handler: function(aJSJaCPacket) {
+									console.log(aJSJaCPacket.xml());
+								},
+								result_handler: function(aJSJaCPacket) {
+									eventProcessor.triggerEvent("service_groupChat_updatedBookmark", [bookmark]);
+								},
+								default_handler: function(aJSJaCPacket) {
+									console.log(aJSJaCPacket.xml());
+								}
+							});
 						},
 						default_handler: function(aJSJaCPacket) {
 							console.log(aJSJaCPacket.xml());
