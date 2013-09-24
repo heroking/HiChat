@@ -96,7 +96,14 @@ HICHAT.model.Presence = HICHAT.model.klass(null, {
 HICHAT.model.Friend = HICHAT.model.klass(null, {
 	__construct: function(oArgs) {
 		this.vCard = oArgs.vCard;
+		this.tag = oArgs.tag;
 		this.groups = oArgs.groups;
+	},
+	getTag : function(){
+		return this.tag;
+	},
+	setTag : function(tag){
+		this.tag = tag;
 	},
 	getVCard: function() {
 		return this.vCard;
@@ -208,20 +215,6 @@ HICHAT.model.RoomInfo = HICHAT.model.klass(HICHAT.model.Room, {
 				this[key] = oArgs[key];
 			}
 		}
-		/*this.passwordProtected = oArgs.passwordProtected;
-		this.hidden = oArgs.hidden;
-		this.temporary = oArgs.temporary;
-		this.open = oArgs.open;
-		this.unmoderated = oArgs.unmoderated;
-		this.nonanonymous = oArgs.nonanonymous;
-		this.description = oArgs.description;
-		this.changesubject = oArgs.changesubject;
-		this.contactjid = oArgs.contactjid;
-		this.subject = oArgs.subject;
-		this.occupants = oArgs.occupants;
-		this.language = oArgs.language;
-		this.logs = oArgs.logs;
-		this.pubsub = oArgs.pubsub;*/
 	},
 	getAttribute: function(attrName) {
 		return this[attrName];
@@ -234,7 +227,7 @@ HICHAT.model.RoomInfo = HICHAT.model.klass(HICHAT.model.Room, {
 HICHAT.model.RoomUser = HICHAT.model.klass(null, {
 	__construct: function(oArgs) {
 		if (typeof oArgs === 'string') {
-			var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-.]+)(?:\/([A-Za-z\u00C0-\u1FFF\u2800-\uFFFD-]+))/.exec(oArgs);
+			var result = /([\w\-\u4e00-\u9fa5]+)@([\w-]+)\.([\w-.]+)(?:\/([\w\u00C0-\u1FFF\u2800-\uFFFD-]+))/.exec(oArgs);
 			this.room = new HICHAT.model.Room({
 				roomId: result[1],
 				groupChatResource: result[2],
@@ -643,7 +636,7 @@ HICHAT.model.VCard = HICHAT.model.klass(HICHAT.model.SimpleUser, {
 		this.headPortrait = headPortrait;
 	},
 	hasHeadPortrait: function() {
-		if (typeof this.headPortrait === "undefined") {
+		if (!(this.headPortrait instanceof HICHAT.model.HeadPortrait)) {
 			return false;
 		}
 		return this.headPortrait.isExist();

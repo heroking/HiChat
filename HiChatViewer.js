@@ -3,6 +3,8 @@ HICHAT.viewer = (function($, window) {
 	var eventProcessor = HICHAT.utils.eventProcessor,
 		validator = HICHAT.utils.Validator,
 		service = HICHAT.service,
+		config = HICHAT.config,
+		emotions = HICHAT.emotions,
 
 		Room = HICHAT.model.Room,
 		RoomUser = HICHAT.model.RoomUser,
@@ -17,15 +19,16 @@ HICHAT.viewer = (function($, window) {
 		GroupMessage = HICHAT.model.GroupMessage,
 		Bookmark = HICHAT.model.Bookmark,
 
+		friends = {},
 		rooms = {},
 		groups = {
 			"noGroup": {}
 		},
 		selfVCard,
-		friendVCard = {},
 		privacyChatPanels = {},
 		groupChatPanels = {},
 		wasteChatPanels = {},
+
 		mainDiv = $("#mainDiv"),
 		loginDiv = $("#loginDiv"),
 		rosterTb = $("#rosterTb"),
@@ -44,11 +47,120 @@ HICHAT.viewer = (function($, window) {
 		rosterGroupDialog = $("#rosterGroupDialog"),
 		addBookmarkDialog = $("#addBookmarkDialog"),
 		bookmarkDialog = $("#bookmarkDialog"),
+		aboutDialog = $("#aboutDialog"),
 		groupUserContextMenu = $("#groupUserContextMenu"),
 		groupConfigContextMenu = $("#groupConfigContextMenu"),
 		rosterContextMenu = $("#rosterContextMenu"),
 		statusContextMenu = $("#statusContextMenu"),
+		mainPageContextMenu = $("#mainPageContextMenu"),
 		changeGroupMenu = $("#changeGroupMenu"),
+		emotionsPanel = $("#emotionsPanel"),
+		/*初始化表情面板*/
+		__initEmotionsPanel = function() {
+			var emotion,
+				imgNode,
+				divNode,
+				__emotionClickFun = function(event) {
+					var jid = emotionsPanel.data("jid"),
+						that = $("img" ,this),
+						textarea;
+					if (typeof privacyChatPanels[jid] !== "undefined") {
+						textarea = $(".s-sd textarea", privacyChatPanels[jid].content);
+						textarea.val(textarea.val() + that.data("emoStr"));
+					} else if (typeof groupChatPanels[jid] !== "undefined") {
+						textarea = $(".s-sd textarea", groupChatPanels[jid].content);
+						textarea.val(textarea.val() + that.data("emoStr"));
+					}
+					event.stopPropagation();
+					event.preventDefault();
+				};
+			for (emotion in emotions) {
+				divNode = $("<div class='u-emoic'></div>");
+				imgNode = $("<img src='resources/emotions/" + emotion + "' />").data("emoStr", emotions[emotion].emoStr);
+				divNode.append(imgNode).click(__emotionClickFun);
+				emotionsPanel.append(divNode);
+			}
+		},
+		/*初始化关于对话框*/
+		__initAboutDialog = function() {
+			aboutDialog.dialog({
+				title: "关于我们",
+				autoOpen: false,
+				closeOnEscape: true,
+				draggable: true,
+				resizable: false,
+				modal: false,
+				width: 800,
+				show: "fade",
+				hide: "fade"
+			});
+		},
+		/*将用于显示的消息内的表情符号转化为表情图片*/
+		__genEmotionMsg = function(message) {
+			var emotion;
+			for (emotion in emotions) {
+				message = message.replace(new RegExp(emotions[emotion].regexp, "g"), "<img src='resources/emotions/" + emotion + "' />");
+			}
+			return message;
+		},
+		/*初始化主页面菜单栏*/
+		__initMainPageContextMenu = function() {
+			/*主页右键单击显示*/
+			$(document).contextmenu(function(event) {
+				var left = event.pageX,
+					top = event.pageY - mainPageContextMenu.height();
+				mainPageContextMenu.css({
+					left: left + "px",
+					top: top + "px"
+				}).fadeIn();
+				event.preventDefault();
+				event.stopPropagation();
+			});
+			/*我的名片选项*/
+			$("li[value='myInfo']", mainPageContextMenu).bind("click", function(event) {
+				vCardDialog.dialog("open");
+			});
+			/*关闭当前聊天窗口*/
+			$("li[value='closeCur']", mainPageContextMenu).bind("click", function(event) {
+				var curIndex = chatTabs.tabs("option", "active"),
+					liNode = $($("li", chatTabUl)[curIndex]);
+				if (curIndex === false) {
+					return;
+				}
+				if (liNode.css("display") !== "none") {
+					$("a span img", liNode).trigger("click");
+				}
+			});
+			/*关闭所有聊天窗口*/
+			$("li[value='closeAll']", mainPageContextMenu).bind("click", function(event) {
+				var index;
+				for (index in privacyChatPanels) {
+					if (Object.prototype.hasOwnProperty.apply(privacyChatPanels, [index])) {
+						__deleteTab(index);
+					}
+				}
+				for (index in groupChatPanels) {
+					if (Object.prototype.hasOwnProperty.apply(groupChatPanels, [index])) {
+						eventProcessor.triggerEvent("service_groupChat_leaveRoom", rooms[index].getRoom());
+						__deleteRoomChatTab(index);
+					}
+				}
+			});
+			/*开启配置窗口，未完成*/
+			$("li[value='config']", mainPageContextMenu).bind("click", function(event) {
+				alert("功能开发中...");
+			});
+			/*开启关于窗口*/
+			$("li[value='about']", mainPageContextMenu).bind("click", function(event) {
+				aboutDialog.dialog("open");
+			});
+			/*用户登出*/
+			$("li[value='logout']", mainPageContextMenu).bind("click", function(event) {
+				rosterTb.html("");
+				eventProcessor.triggerEvent("service_selfControl_logout");
+			});
+		},
+		/*从分组中删除用户*/
 		__deleteUserInGroups = function(jid) {
 			var groupName;
 			for (groupName in groups) {
@@ -57,6 +169,7 @@ HICHAT.viewer = (function($, window) {
 				}
 			}
 		},
+		/*在分组冲添加用户*/
 		__addUserInGroups = function(jid, groupList) {
 			var i;
 			if (groupList.length === 0) {
@@ -70,6 +183,7 @@ HICHAT.viewer = (function($, window) {
 				groups[groupList[i]][jid] = false;
 			}
 		},
+		/*初始化黑名单对话框*/
 		__initOutcastDialog = function() {
 			outcastDialog.dialog({
 				autoOpen: false,
@@ -90,6 +204,7 @@ HICHAT.viewer = (function($, window) {
 				]
 			});
 		},
+		/*初始化群聊个人菜单栏*/
 		__initGroupConfigContextMenu = function() {
 			$("li[name='changeConfig']", groupConfigContextMenu).click(function(event) {});
 			$("li[name='getOutcastList']", groupConfigContextMenu).click(function(event) {
@@ -112,6 +227,10 @@ HICHAT.viewer = (function($, window) {
 				eventProcessor.triggerEvent("service_groupChat_changeStatusInRoom", [groupConfigContextMenu.data("roomJid")]);
 			});
 		},
+		/*
+			显示群聊个人配置菜单栏
+				根据用户权限的不同，显示不同的功能项
+		*/
 		__showGroupConfigContextMenu = function(selfAffailiation, roomJid, left, top) {
 			$("li", groupConfigContextMenu).show();
 			if (selfAffailiation !== 'owner') {
@@ -229,126 +348,137 @@ HICHAT.viewer = (function($, window) {
 			}
 		},
 		__drawRoomChatTab = function(room, users) {
-			try {
-				var index = room.toString(),
-					newTab,
-					newContent,
-					chatPanel,
-					chatTextArea,
-					sendBtn,
-					sendTextArea,
-					sendDiv,
-					groupMemberDiv,
-					closeChatPanelSpan,
-					dropupDiv,
-					memberUl,
-					members,
-					i,
-					m,
-					userJid;
+			var index = room.toString(),
+				newTab,
+				newContent,
+				chatPanel,
+				chatTextArea,
+				sendBtn,
+				emotionBtn,
+				sendTextArea,
+				sendDiv,
+				groupMemberDiv,
+				closeChatPanelSpan,
+				dropupDiv,
+				memberUl,
+				members,
+				i,
+				m,
+				userJid;
 
-				if (typeof groupChatPanels[index] === "undefined") {
-					groupChatPanels[index] = {
-						messageQueue: []
-					};
-				}
+			if (typeof groupChatPanels[index] === "undefined") {
+				groupChatPanels[index] = {
+					messageQueue: []
+				};
+			}
 
-				if (typeof groupChatPanels[index].content === "undefined") {
-					if (typeof wasteChatPanels[index] === "undefined") {
-						newTab = $("<li><a href='#chatPanel_" + room.getRoomId() + "_" + room.getGroupChatResource() + "_" + room.getDomain() + "'>" + room.getRoomName() + "<span><img src='resources/closeChatPanelIcon.png'></span></a></li>");
-						chatTabUl.append(newTab);
-						chatTextArea = $("<div class='u-cta'><table><thead></thead><tbody></tbody></table></div>").css("max-height", $("body").height() - 150 + "px");
-						sendTextArea = $("<textarea></textarea>").bind("keypress", function(event) {
-							if (event.ctrlKey && event.which === 13 || event.which === 10) {
-								$(".u-sbtn", $(this).parent()).trigger("click");
-							}
-						});
-						sendBtn = $("<button class='btn btn-success u-sbtn'>发送</button>").data("roomJid", room.toString()).bind("click", function(event) {
-							var room = rooms[$(this).data("roomJid")].getRoom(),
-								msgBody = $("textarea", $(this).parent()).val().trim();
-							if (msgBody === "") {
-								return;
-							}
-							eventProcessor.triggerEvent("service_groupChat_groupSendMsg", [new GroupMessage({
-									groupUser: new RoomUser({
-										room: room
-									}),
-									message: msgBody
-								})]);
-							$("textarea", $(this).parent()).focus().val("");
-						});
-
-						memberUl = $("<ul class='dropdown-menu pull-right' roomJid='" + index + "'></ul>");
-						dropupDiv = $("<div style='margin-left:50px' class='u-mdu'></div>")
-							.data("member", 0)
-							.addClass("btn-group dropup")
-							.append("<button class='btn btn-success u-mc'></button>")
-							.append("<button class='btn btn-success dropdown-toggle' data-toggle='dropdown' style='padding:5px 12px 12px 12px'><span class='caret'></span></button>")
-							.append(memberUl);
-						$(".u-mc", dropupDiv).data({
-							roomJid: index,
-							// selfAffailiation: service.getSelfInRoom(index).getAffiliation()
-							selfAffailiation: rooms[index].getAffiliation()
-						}).click(function(event) {
-							var that = $(this),
-								roomJid = that.data("roomJid"),
-								selfAffailiation = that.data("selfAffailiation"),
-								left = event.pageX,
-								top = event.pageY;
-							__showGroupConfigContextMenu(selfAffailiation, roomJid, left, top);
-							event.stopPropagation();
-							event.preventDefault();
-							return false;
-						}).contextmenu(function(event) {
-							var that = $(this),
-								roomJid = that.data("roomJid"),
-								selfAffailiation = that.data("selfAffailiation"),
-								left = event.pageX,
-								top = event.pageY;
-							__showGroupConfigContextMenu(selfAffailiation, roomJid, left, top);
-							event.stopPropagation();
-							event.preventDefault();
-							return false;
-						});
-
-						sendDiv = $("<div class='u-sd s-sd'></div>").append(sendTextArea).append(sendBtn).append(dropupDiv);
-						chatPanel = $("<div class='m-cp'></div>").css("height", $("body").height() - 150 + "px").append(chatTextArea).append(sendDiv);
-						newContent = $("<div id='chatPanel_" + room.getRoomId() + "_" + room.getGroupChatResource() + "_" + room.getDomain() + "'></div>").append(chatPanel);
-						chatTabs.append(newContent);
-						chatTabs.tabs("refresh");
-						$("a", newTab).trigger("click");
-						$("img", newTab).click(function(event) {
-							__deleteRoomChatTab(room);
-							eventProcessor.triggerEvent("service_groupChat_leaveRoom", [room]);
-							event.stopPropagation();
-						});
-						groupChatPanels[index].tab = newTab;
-						groupChatPanels[index].content = newContent;
-						members = room.getCurUsers();
-						for (i in members) {
-							if (Object.prototype.hasOwnProperty.apply(members, [i])) {
-								__drawRoomUser(members[i]);
-							}
+			if (typeof groupChatPanels[index].content === "undefined") {
+				if (typeof wasteChatPanels[index] === "undefined") {
+					newTab = $("<li><a href='#chatPanel_" + room.getRoomId() + "_" + room.getGroupChatResource() + "_" + room.getDomain() + "'>" + room.getRoomName() + "<span><img src='resources/closeChatPanelIcon.png'></span></a></li>");
+					newTab.attr("jid", index).data({
+						type: "room",
+						jid: index
+					});
+					chatTabUl.append(newTab);
+					chatTextArea = $("<div class='u-cta'><table><thead></thead><tbody></tbody></table></div>").css("max-height", $("body").height() - 150 + "px");
+					sendTextArea = $("<textarea></textarea>").bind("keypress", function(event) {
+						if (event.ctrlKey && event.which === 13 || event.which === 10) {
+							$(".u-sbtn", $(this).parent()).trigger("click");
 						}
-					} else {
-						groupChatPanels[index].tab = wasteChatPanels[index].tab.fadeIn();
-						groupChatPanels[index].content = wasteChatPanels[index].content.fadeIn();
-						chatTabs.tabs("refresh");
-						$("a", groupChatPanels[index].tab).trigger("click");
-						delete wasteChatPanels[index].tab;
-						delete wasteChatPanels[index].content;
-						delete wasteChatPanels[index];
-					}
-					for (userJid in users) {
-						if (users.hasOwnProperty(userJid)) {
-							__drawRoomUser(users[userJid]);
+					});
+					sendBtn = $("<button class='btn btn-success u-sbtn'>发送</button>").data("roomJid", room.toString()).bind("click", function(event) {
+						var room = rooms[$(this).data("roomJid")].getRoom(),
+							msgBody = $("textarea", $(this).parent()).val().trim();
+						if (msgBody === "") {
+							return;
+						}
+						eventProcessor.triggerEvent("service_groupChat_groupSendMsg", [new GroupMessage({
+								groupUser: rooms[index],
+								message: msgBody
+							})]);
+						$("textarea", $(this).parent()).focus().val("");
+					});
+					emotionBtn = $("<span class='u-emo'><img src='resources/emotionIcon.png'/></span>").data("jid", index).click(function(event) {
+						var that = $(this),
+							left = event.pageX,
+							top = event.pageY - emotionsPanel.height();
+						emotionsPanel.data("jid", that.data("jid")).css({
+							left : left + "px",
+							top : top + "px"
+						}).fadeIn();
+						event.stopPropagation();
+						event.preventDefault();
+					});
+					memberUl = $("<ul class='dropdown-menu pull-right' roomJid='" + index + "'></ul>");
+					dropupDiv = $("<div style='margin-left:50px' class='u-mdu'></div>")
+						.data("member", 0)
+						.addClass("btn-group dropup")
+						.append("<button class='btn btn-success u-mc'></button>")
+						.append("<button class='btn btn-success dropdown-toggle' data-toggle='dropdown' style='padding:5px 12px 12px 12px'><span class='caret'></span></button>")
+						.append(memberUl);
+					$(".u-mc", dropupDiv).data({
+						roomJid: index,
+						// selfAffailiation: service.getSelfInRoom(index).getAffiliation()
+						selfAffailiation: rooms[index].getAffiliation()
+					}).click(function(event) {
+						var that = $(this),
+							roomJid = that.data("roomJid"),
+							selfAffailiation = that.data("selfAffailiation"),
+							left = event.pageX,
+							top = event.pageY;
+						__showGroupConfigContextMenu(selfAffailiation, roomJid, left, top);
+						event.stopPropagation();
+						event.preventDefault();
+						return false;
+					}).contextmenu(function(event) {
+						var that = $(this),
+							roomJid = that.data("roomJid"),
+							selfAffailiation = that.data("selfAffailiation"),
+							left = event.pageX,
+							top = event.pageY;
+						__showGroupConfigContextMenu(selfAffailiation, roomJid, left, top);
+						event.stopPropagation();
+						event.preventDefault();
+						return false;
+					});
+
+					sendDiv = $("<div class='u-sd s-sd'></div>").append(sendTextArea).append(sendBtn).append(emotionBtn).append(dropupDiv);
+					chatPanel = $("<div class='m-cp'></div>").css("height", $("body").height() - 150 + "px").append(chatTextArea).append(sendDiv);
+					newContent = $("<div id='chatPanel_" + room.getRoomId() + "_" + room.getGroupChatResource() + "_" + room.getDomain() + "'></div>").append(chatPanel);
+					newContent.attr("jid", index);
+					chatTabs.append(newContent);
+					chatTabs.tabs("refresh");
+					$("a", newTab).trigger("click");
+					$("img", newTab).click(function(event) {
+						__deleteRoomChatTab(room);
+						eventProcessor.triggerEvent("service_groupChat_leaveRoom", [room]);
+						event.stopPropagation();
+					});
+					groupChatPanels[index].tab = newTab;
+					groupChatPanels[index].content = newContent;
+					members = room.getCurUsers();
+					for (i in members) {
+						if (Object.prototype.hasOwnProperty.apply(members, [i])) {
+							__drawRoomUser(members[i]);
 						}
 					}
 				} else {
-					$("a", groupChatPanels[index].tab).tab('show');
+					groupChatPanels[index].tab = wasteChatPanels[index].tab.fadeIn();
+					groupChatPanels[index].content = wasteChatPanels[index].content.fadeIn();
+					chatTabs.tabs("refresh");
+					$("a", groupChatPanels[index].tab).trigger("click");
+					delete wasteChatPanels[index].tab;
+					delete wasteChatPanels[index].content;
+					delete wasteChatPanels[index];
 				}
-			} catch (e) {
-				console.dir(e);
+				for (userJid in users) {
+					if (users.hasOwnProperty(userJid)) {
+						__drawRoomUser(users[userJid]);
+					}
+				}
+				$(".u-cta table tbody", groupChatPanels[index].content).html("");
+			} else {
+				$("a", groupChatPanels[index].tab).tab('show');
 			}
 		},
 		__deleteRoomChatTab = function(room) {
@@ -357,23 +487,10 @@ HICHAT.viewer = (function($, window) {
 			if (typeof room !== 'string') {
 				index = room.toString();
 			}
-			/*while (true) {
-				prev = groupChatPanels[index].tab.prev();
-				if (prev.length === 0) {
-					break;
-				}
-				if (prev.css("display") !== "none") {
-					$("a", prev).trigger("click");
-					break;
-				}
-			}*/
 			if (typeof groupChatPanels[index] !== "undefined") {
-				wasteChatPanels[index] = {};
-				wasteChatPanels[index].tab = groupChatPanels[index].tab;
-				wasteChatPanels[index].content = groupChatPanels[index].content;
+				wasteChatPanels[index] = groupChatPanels[index];
 				$(".u-mdu ul li", wasteChatPanels[index].content).remove();
-				delete groupChatPanels[index].tab;
-				delete groupChatPanels[index].content;
+				delete groupChatPanels[index];
 				wasteChatPanels[index].tab.fadeOut();
 				wasteChatPanels[index].content.fadeOut();
 			}
@@ -390,8 +507,9 @@ HICHAT.viewer = (function($, window) {
 			delete groupChatPanels[index].content;
 			delete groupChatPanels[index];
 		},
-		__createTab = function(user, nickname) {
+		__createTab = function(user) {
 			var index = user.toString(),
+				tag,
 				newTab,
 				newContent,
 				chatPanel,
@@ -399,10 +517,11 @@ HICHAT.viewer = (function($, window) {
 				sendBtn,
 				sendTextArea,
 				sendDiv,
+				emotionBtn,
 				closeChatPanelSpan,
 				i,
 				m;
-			nickname = nickname || user.toString();
+			tag = friends[index].getTag() || user.getJid();
 			if (typeof privacyChatPanels[index] === "undefined") {
 				privacyChatPanels[index] = {
 					messageQueue: []
@@ -411,7 +530,11 @@ HICHAT.viewer = (function($, window) {
 
 			if (typeof privacyChatPanels[index].content === "undefined") {
 				if (typeof wasteChatPanels[index] === "undefined") {
-					newTab = $("<li><a href='#chatPanel_" + user.getJid() + "_" + user.getDomain() + "'>" + nickname + "<span><img src='resources/closeChatPanelIcon.png'></span></a></li>");
+					newTab = $("<li><a href='#chatPanel_" + user.getJid() + "_" + user.getDomain() + "'>" + tag + "<span><img src='resources/closeChatPanelIcon.png'></span></a></li>");
+					newTab.attr("jid", index).data({
+						type: "privacy",
+						jid: index
+					});
 					chatTabUl.append(newTab);
 					chatTextArea = $("<div class='u-cta'><table><thead></thead><tbody></tbody></table></div>").css("max-height", $("body").height() - 150 + "px");
 					sendTextArea = $("<textarea></textarea>").bind("keypress", function(event) {
@@ -432,9 +555,21 @@ HICHAT.viewer = (function($, window) {
 							})]);
 						$("textarea", $(this).parent()).focus().val("");
 					});
-					sendDiv = $("<div class='u-sd s-sd'></div>").append(sendTextArea).append(sendBtn);
+					emotionBtn = $("<span class='u-emo'><img src='resources/emotionIcon.png'/></span>").data("jid", index).click(function(event) {
+						var that = $(this),
+							left = event.pageX,
+							top = event.pageY - emotionsPanel.height();
+						emotionsPanel.data("jid", that.data("jid")).css({
+							left : left + "px",
+							top : top + "px"
+						}).fadeIn();
+						event.stopPropagation();
+						event.preventDefault();
+					});
+					sendDiv = $("<div class='u-sd s-sd'></div>").append(sendTextArea).append(sendBtn).append(emotionBtn);
 					chatPanel = $("<div class='m-cp'></div>").css("height", $("body").height() - 150 + "px").append(chatTextArea).append(sendDiv);
 					newContent = $("<div id='chatPanel_" + user.getJid() + "_" + user.getDomain() + "'></div>").append(chatPanel);
+					newContent.attr("jid", index);
 					chatTabs.append(newContent).tabs("refresh");
 					$("a", newTab).trigger("click");
 					$("img", newTab).addClass("u-del").click(function(event) {
@@ -448,8 +583,6 @@ HICHAT.viewer = (function($, window) {
 					privacyChatPanels[index].content = wasteChatPanels[index].content.fadeIn();
 					chatTabs.tabs("refresh");
 					$("a", privacyChatPanels[index].tab).trigger("click");
-					delete wasteChatPanels[index].tab;
-					delete wasteChatPanels[index].content;
 					delete wasteChatPanels[index];
 				}
 			} else {
@@ -469,22 +602,9 @@ HICHAT.viewer = (function($, window) {
 			if (typeof user !== 'string') {
 				index = user.toString();
 			}
-			/*while (true) {
-				prev = privacyChatPanels[index].tab.prev();
-				if (prev.length === 0) {
-					break;
-				}
-				if (prev.css("display") !== "none") {
-					$("a", prev).trigger("click");
-					break;
-				}
-			}*/
 			if (typeof privacyChatPanels[index] !== "undefined") {
-				wasteChatPanels[index] = {};
-				wasteChatPanels[index].tab = privacyChatPanels[index].tab;
-				wasteChatPanels[index].content = privacyChatPanels[index].content;
-				delete privacyChatPanels[index].tab;
-				delete privacyChatPanels[index].content;
+				wasteChatPanels[index] = privacyChatPanels[index];
+				delete privacyChatPanels[index];
 				wasteChatPanels[index].tab.fadeOut();
 				wasteChatPanels[index].content.fadeOut();
 			}
@@ -501,25 +621,39 @@ HICHAT.viewer = (function($, window) {
 			delete privacyChatPanels[index].content;
 			delete privacyChatPanels[index];
 		},
+		__destoryWastedChatTab = function(user) {
+			var index = user;
+			if (typeof user !== 'string') {
+				index = user.toString();
+			}
+			wasteChatPanels[index].tab.remove();
+			wasteChatPanels[index].content.remove();
+			delete wasteChatPanels[index].tab;
+			delete wasteChatPanels[index].content;
+			delete wasteChatPanels[index];
+		},
 		__drawRoster = function(friend) {
 			var divNode,
 				statusNode,
 				user = friend.getVCard().toSimpleUser();
 			__addUserInGroups(user.toString(), friend.getGroups());
-			// 绘制好友信息并添加到好友列表中
 			if ($("div[jid='" + user.getJid() + "_" + user.getDomain() + "']", rosterTb).length === 0) {
 				divNode = $("<div class='g-line' jid='" + user.getJid() + "_" + user.getDomain() + "' ></div>").css("opacity", "0.3");
 				statusNode = $("<img class='u-status' src='resources/status_offline.png'/>");
 				divNode.append(statusNode);
 				divNode.append("<div class='u-head'><div><span class='u-mc' style='display:none'></span><img src='resources/defaultHeader.jpg'></div></div>");
-				divNode.append("<div class='u-nick'>" + user.getJid() + "</div>");
+				if (friend.getTag()) {
+					divNode.append("<div class='u-nick'>" + friend.getTag() + "</div>");
+				} else {
+					divNode.append("<div class='u-nick'>" + user.getJid() + "</div>");
+				}
 				$(".u-head img", divNode).bind("dblclick", function(event) {
-					var vCard = friendVCard[$(this).parent().parent().parent().data("jid")];
+					var vCard = friends[$(this).parent().parent().parent().data("jid")].getVCard();
 					__createTab(vCard.toSimpleUser(), vCard.getPersonalInfo().getNickname());
 				}).contextmenu(function(event) {
 					var left = event.pageX,
 						top = event.pageY,
-						vCard = friendVCard[$(this).parent().parent().parent().data("jid")];
+						vCard = friends[$(this).parent().parent().parent().data("jid")].getVCard();
 					top -= rosterContextMenu.height();
 					rosterContextMenu.data("jid", vCard.toString()).css("left", left + "px").css("top", top + "px").fadeIn();
 					event.stopPropagation();
@@ -542,9 +676,9 @@ HICHAT.viewer = (function($, window) {
 			if (vCard.hasHeadPortrait()) {
 				$(".u-head img", divNode).attr("src", vCard.getHeadPortrait().toHtmlString());
 			}
-			if (vCard.getPersonalInfo().getNickname()) {
+			/*if (vCard.getPersonalInfo().getNickname()) {
 				$(".u-nick", divNode).text(vCard.getPersonalInfo().getNickname());
-			}
+			}*/
 			__unBlockElement(divNode);
 		},
 		__deleteRoster = function(user) {
@@ -580,7 +714,7 @@ HICHAT.viewer = (function($, window) {
 					fragment.css("float", "right");
 					msgDiv.addClass("u-smsg");
 				} else {
-					friendNickname = friendVCard[user.toString()].getPersonalInfo().getNickname();
+					friendNickname = friends[user.toString()].getVCard().getPersonalInfo().getNickname();
 					if (friendNickname) {
 						result += friendNickname;
 					} else {
@@ -589,9 +723,14 @@ HICHAT.viewer = (function($, window) {
 					fragment.css("float", "left");
 					msgDiv.addClass("u-rmsg");
 				}
-				result += " (" + new Date(message.getTime()).toLocaleTimeString() + ") :";
-				result += msgBody;
-				msgDiv.text(result);
+				if (new Date(message.getTime()).toDateString() === new Date().toDateString()) {
+					result += " (" + new Date(message.getTime()).toLocaleTimeString() + ") : ";
+				} else {
+					result += " (" + new Date(message.getTime()).toLocaleString() + ") : ";
+				}
+				result += __genEmotionMsg(msgBody.htmlDecode());
+				console.log(result);
+				msgDiv[0].innerHTML = result;
 				fragment.append(msgDiv);
 				$("table tbody", container.content).append($("<tr></tr>").append(fragment));
 				$(".u-cta", container.content).scrollTop($(".u-cta", container.content)[0].scrollHeight);
@@ -628,8 +767,7 @@ HICHAT.viewer = (function($, window) {
 			}
 			container = groupChatPanels[index];
 			if (typeof container.content !== "undefined") {
-				//if (roomUser.getNickname() === service.getSelfInRoom(index).getNickname()) {
-				console.log(roomUser, rooms[index]);
+				//if (roomUser.getNickname() === service.ge1tSelfInRoom(index).getNickname()) {
 				if (roomUser.getNickname() === rooms[index].getNickname()) {
 					fragment.css("float", "right");
 					msgDiv.addClass("u-rmsg");
@@ -638,9 +776,13 @@ HICHAT.viewer = (function($, window) {
 					msgDiv.addClass("u-smsg");
 				}
 				result += roomUser.getNickname();
-				result += " (" + new Date(message.getTime()).toLocaleTimeString() + "):";
-				result += msgBody;
-				msgDiv.text(result);
+				if (new Date(message.getTime()).toDateString() === new Date().toDateString()) {
+					result += " (" + new Date(message.getTime()).toLocaleTimeString() + ") : ";
+				} else {
+					result += " (" + new Date(message.getTime()).toLocaleString() + ") : ";
+				}
+				result += __genEmotionMsg(msgBody.htmlDecode());
+				msgDiv[0].innerHTML = result;
 				fragment.append(msgDiv);
 				$("table tbody", container.content).append($("<tr></tr>").append(fragment));
 				$(".u-cta", container.content).scrollTop($(".u-cta", container.content)[0].scrollHeight);
@@ -735,12 +877,12 @@ HICHAT.viewer = (function($, window) {
 				show: "fade",
 				hide: "fade",
 				open: function(event, ui) {
-					$("input", joinRoomDialog).val("");
+					$("input[name=nickname]", joinRoomDialog).val(selfVCard.getJid());
 					if (!rooms[joinRoomDialog.data("roomJid")].getRoom().getAttribute("passwordprotected")) {
 						$("table tbody tr:eq(1)", joinRoomDialog).hide();
 					} else {
 						$("table tbody tr:eq(1)", joinRoomDialog).show();
-						eventProcessor.triggerEvent("service_groupChat_getOldNick", [joinRoomDialog.data("roomJid")]);
+						//eventProcessor.triggerEvent("service_groupChat_getOldNick", [joinRoomDialog.data("roomJid")]);
 					}
 				},
 				buttons: [{
@@ -823,7 +965,7 @@ HICHAT.viewer = (function($, window) {
 			});
 			$("#logoutBtn").click(function(event) {
 				rosterTb.html("");
-				eventProcessor.triggerEvent("service_selfControl_logout", []);
+				eventProcessor.triggerEvent("service_selfControl_logout");
 			});
 			$("#createRoomBtn").click(function(event) {
 				createRoomDialog.dialog("open");
@@ -1012,14 +1154,92 @@ HICHAT.viewer = (function($, window) {
 			});
 		},
 		__initLoginPanel = function() {
+			/*------------输入框初始化------------*/
+			if ($.cookie("rememberMe") === "true") {
+				$("input[name='rememberMe']", loginDiv).get()[0].checked = true;
+				$("input[name='username']", loginDiv).val($.cookie("username"));
+				$("input[name='password']", loginDiv).val($.cookie("password"));
+				$("input[name='host']", loginDiv).val($.cookie("host"));
+				$("input[name='port']", loginDiv).val($.cookie("port"));
+				$("input[name='groupResources']", loginDiv).val($.cookie("groupResources"));
+				$("input[name='resources']", loginDiv).val($.cookie("resources"));
+				$("input[name='clientHost']", loginDiv).val($.cookie("clientHost"));
+				$("input[name='domain']", loginDiv).val($.cookie("domain"));
+			} else {
+				$("input[name='rememberMe']", loginDiv).get()[0].checked = false;
+				$("input[name='host']", loginDiv).val(config.host);
+				$("input[name='port']", loginDiv).val(config.port);
+				$("input[name='groupResources']", loginDiv).val(config.groupChatResource);
+				$("input[name='resources']", loginDiv).val(config.resource);
+				$("input[name='clientHost']", loginDiv).val(config.httpbase);
+				$("input[name='domain']", loginDiv).val(config.domain);
+			}
+			/*------------高级登陆选项初始化----*/
+			$(".adSetting", loginDiv).hide();
+			$("#loginConfigBtn").click(function(event) {
+				if ($("img", this).attr("src") === "resources/upArrow.png") {
+					$("img", this).attr("src", "resources/downArrow.png");
+					$(".adSetting", loginDiv).fadeOut();
+				} else {
+					$("img", this).attr("src", "resources/upArrow.png");
+					$(".adSetting", loginDiv).fadeIn();
+				}
+			});
 			/*------------登陆初始化------------*/
 			$("form", loginDiv).bind("submit", function(event) {
 				var username = $("input[name='username']", this).val(),
-					password = $("input[name='password']", this).val();
+					password = $("input[name='password']", this).val(),
+					host = $("input[name='host']", this).val(),
+					port = $("input[name='port']", this).val(),
+					domain = $("input[name='domain']", this).val(),
+					groupResources = $("input[name='groupResources']", this).val(),
+					resources = $("input[name='resources']", this).val(),
+					clientHost = $("input[name='clientHost']", this).val(),
+					rememberMe = $("input[name='rememberMe']", this).get()[0].checked;
 				if (!$(this).valid()) {
 					return;
 				}
 				__blockPage("登录中，请稍后...");
+				$.cookie("rememberMe", rememberMe, {
+					expires: 7
+				});
+				if (rememberMe) {
+					$.cookie("username", username, {
+						expires: 7
+					});
+					$.cookie("host", host, {
+						expires: 7
+					});
+					$.cookie("port", port, {
+						expires: 7
+					});
+					$.cookie("groupResources", groupResources, {
+						expires: 7
+					});
+					$.cookie("resources", resources, {
+						expires: 7
+					});
+					$.cookie("clientHost", clientHost, {
+						expires: 7
+					});
+					$.cookie("domain", domain, {
+						expires: 7
+					});
+				} else {
+					$.cookie("username", null);
+					$.cookie("host", null);
+					$.cookie("port", null);
+					$.cookie("groupResources", null);
+					$.cookie("resources", null);
+					$.cookie("clientHost", null);
+					$.cookie("domain", null);
+				}
+				config.host = host;
+				config.port = port;
+				config.groupChatResource = groupResources;
+				config.resource = resources;
+				config.httpbase = clientHost;
+				config.domain = domain;
 				eventProcessor.triggerEvent("service_selfControl_login", [username, password]);
 				event.stopPropagation();
 				event.preventDefault();
@@ -1138,15 +1358,33 @@ HICHAT.viewer = (function($, window) {
 		},
 		__initRosterContextMenu = function() {
 			$("li[value='delete']", rosterContextMenu).bind("click", function(event) {
-				eventProcessor.triggerEvent("service_roster_sendUnsubscribe", [friendVCard[rosterContextMenu.data("jid")]]);
+				eventProcessor.triggerEvent("service_roster_sendUnsubscribe", [friends[rosterContextMenu.data("jid")].getVCard()]);
 			});
 			$("li[value='info']", rosterContextMenu).bind("click", function(event) {
 				rosterVCardDialog.data("jid", rosterContextMenu.data("jid"));
 				rosterVCardDialog.dialog("close");
 				rosterVCardDialog.dialog("open");
 			});
+			$("li[value='tag']", rosterContextMenu).bind("click", function(event) {
+				__prompt("请输入新的备注：", function(tag) {
+					var groupName,
+						user = friends[rosterContextMenu.data("jid")].getVCard(),
+						groupList = [];
+					console.log(groups);
+					for (groupName in groups) {
+						if (groups.hasOwnProperty(groupName)) {
+							if (typeof groups[groupName][user.toString()] !== "undefined" && groupName !== "noGroup") {
+								groupList.push(groupName);
+							}
+						}
+					}
+					eventProcessor.triggerEvent("service_roster_changeRosterTag", [user, groupList, tag]);
+				}, function(tag) {
+					return;
+				});
+			});
 			$("li[value='chat']", rosterContextMenu).bind("click", function(event) {
-				var vCard = friendVCard[rosterContextMenu.data("jid")];
+				var vCard = friends[rosterContextMenu.data("jid")].getVCard();
 				__createTab(vCard.toSimpleUser(), vCard.getPersonalInfo().getNickname());
 			});
 			$("li[value='group']", rosterContextMenu).bind("click", function(event) {
@@ -1166,7 +1404,7 @@ HICHAT.viewer = (function($, window) {
 				show: "fade",
 				hide: "fade",
 				open: function(event, ui) {
-					var vCard = friendVCard[$(this).data("jid")],
+					var vCard = friends[$(this).data("jid")].getVCard(),
 						groupName,
 						groupList = $("ul", this);
 					$("strong", this).text("要将 " + vCard.getPersonalInfo().getNickname() + "(" + vCard.toString() + ") 加入哪些分组？");
@@ -1174,14 +1412,18 @@ HICHAT.viewer = (function($, window) {
 					for (groupName in groups) {
 						if (groups.hasOwnProperty(groupName)) {
 							if (groupName !== "noGroup") {
-								groupList.append("<li>" + groupName + "<input type='checkbox' name='" + groupName + "'/></li>");
+								if (typeof groups[groupName][vCard.toString()] !== "undefined") {
+									groupList.append("<li>" + groupName + "<input type='checkbox' name='" + groupName + "' checked='checked'/></li>");
+								} else {
+									groupList.append("<li>" + groupName + "<input type='checkbox' name='" + groupName + "'/></li>");
+								}
 							}
 						}
 					}
 				}
 			});
 			/*------------分组新建按钮初始化---------------*/
-			$("#groupCreateBtn").bind("click", function() {
+			$("#groupCreateBtn").bind("click", function(event) {
 				__prompt("请填入需要新的分组名称：", function(groupName) {
 					$("ul", rosterGroupDialog).append("<li>" + groupName + "<input type='checkbox' name='" + groupName + "'/></li>");
 				}, function() {});
@@ -1190,16 +1432,15 @@ HICHAT.viewer = (function($, window) {
 			});
 			/*-----------分组表单初始化----------------*/
 			$("#groupForm").submit(function(event) {
-				var groupList = [];
+				var groupList = [],
+					friend = friends[rosterGroupDialog.data("jid")];
 				$("ul input[type=checkbox]", this).each(function() {
 					if (this.checked) {
 						groupList.push($(this).attr("name"));
 					}
 				});
-				eventProcessor.triggerEvent("service_roster_changeGroup", [new Friend({
-						vCard: friendVCard[rosterGroupDialog.data("jid")],
-						groups: groupList
-					})]);
+				friend.setGroups(groupList);
+				eventProcessor.triggerEvent("service_roster_changeGroup", [friend]);
 				event.stopPropagation();
 				event.preventDefault();
 			});
@@ -1285,7 +1526,7 @@ HICHAT.viewer = (function($, window) {
 				show: "fade",
 				hide: "fade",
 				open: function(event, ui) {
-					var vCard = friendVCard[rosterVCardDialog.data("jid")];
+					var vCard = friends[rosterVCardDialog.data("jid")].getVCard();
 					$("tbody tr td", rosterVCardDialog).each(function() {
 						var that = $(this),
 							type = that.attr("vType"),
@@ -1401,6 +1642,7 @@ HICHAT.viewer = (function($, window) {
 				hide: "fade",
 				open: function(event, ui) {
 					$("input", addBookmarkDialog).val("");
+					$("input[name='nickname']", addBookmarkDialog).val(selfVCard.getJid());
 					$("#bookmarkRoomName").text(rooms[addBookmarkDialog.data("roomJid")].getRoom().getRoomName());
 				}
 			});
@@ -1410,7 +1652,7 @@ HICHAT.viewer = (function($, window) {
 					tag = this.tag.value,
 					nickname = this.nickname.value,
 					autojoin = this.autojoin.checked;
-				if(!$(this).valid()){
+				if (!$(this).valid()) {
 					return;
 				}
 				eventProcessor.triggerEvent("service_groupChat_addBookmark", [new Bookmark({
@@ -1433,13 +1675,13 @@ HICHAT.viewer = (function($, window) {
 					}
 				},
 				messages: {
-					tag : {
-						required : "请填写书签名称",
-						rangelength : "请填写长度为1-10个字符的名称"
+					tag: {
+						required: "请填写书签名称",
+						rangelength: "请填写长度为1-10个字符的名称"
 					},
-					nickname : {
-						required : "请填写进入房间使用的昵称",
-						rangelength : "请填写长度为1-12个字符的昵称"
+					nickname: {
+						required: "请填写进入房间使用的昵称",
+						rangelength: "请填写长度为1-12个字符的昵称"
 					}
 				}
 			});
@@ -1541,6 +1783,9 @@ HICHAT.viewer = (function($, window) {
 		__initRosterVCardDialog();
 		__initAddBookmarkDialog();
 		__initBookmarkDialog();
+		__initEmotionsPanel();
+		__initMainPageContextMenu();
+		__initAboutDialog();
 	}());
 
 	eventProcessor.bindEvent({
@@ -1553,16 +1798,23 @@ HICHAT.viewer = (function($, window) {
 					__destoryPrivacyTab(index);
 				}
 			}
-			privacyChatPanels = {};
 			for (index in groupChatPanels) {
 				if (Object.prototype.hasOwnProperty.apply(groupChatPanels, [index])) {
 					__destoryRoomChatTab(index);
 				}
 			}
+			for (index in wasteChatPanels) {
+				if (Object.prototype.hasOwnProperty.apply(wasteChatPanels, [index])) {
+					__destoryWastedChatTab(index);
+				}
+			}
+			privacyChatPanels = {};
 			groupChatPanels = {};
+			wasteChatPanels = {};
 			rosterTb.html("");
 			myStatus.attr("src", "resources/user-chat.png");
-			$(".dialog").dialog("close");
+			//$(".dialog").dialog("close");
+			__unBlockPage();
 		},
 		viewer_logined: function(event) {
 			loginDiv.slideUp();
@@ -1570,11 +1822,11 @@ HICHAT.viewer = (function($, window) {
 			registerDialog.dialog("close");
 		},
 		viewer_drawRoster: function(event, friend) {
-			friendVCard[friend.getVCard().toString()] = friend.getVCard();
+			friends[friend.getVCard().toString()] = friend;
 			__drawRoster(friend);
 		},
 		viewer_drawRosterDetail: function(event, vCard) {
-			friendVCard[vCard.toString()] = vCard;
+			friends[vCard.toString()].setVCard(vCard);
 			__drawRosterDetail(vCard);
 		},
 		viewer_removeRoster: function(event, user) {
@@ -1634,21 +1886,17 @@ HICHAT.viewer = (function($, window) {
 			__unBlockPage();
 		},
 		viewer_listRoom: function(event, roomList) {
-			try {
-				var newNodesStr = "",
-					i;
-				for (i = roomList.length; i--;) {
-					newNodesStr += "<tr><td>" + roomList[i].getRoomName() + "</td><td><button roomJid='" + roomList[i].toString() + "' class='btn btn-primary'>进入</button></td></tr>";
-				}
-				$("tbody", findRoomDialog).html("").append(newNodesStr);
-				$("tbody button", findRoomDialog).bind("click", function(event) {
-					joinRoomDialog.data("roomJid", $(this).attr("roomJid")).dialog("open");
-					findRoomDialog.dialog("close");
-				});
-				__unBlockElement(findRoomDialog);
-			} catch (e) {
-				console.log(e.message);
+			var newNodesStr = "",
+				i;
+			for (i = roomList.length; i--;) {
+				newNodesStr += "<tr><td>" + roomList[i].getRoomName() + "</td><td><button roomJid='" + roomList[i].toString() + "' class='btn btn-primary'>进入</button></td></tr>";
 			}
+			$("tbody", findRoomDialog).html("").append(newNodesStr);
+			$("tbody button", findRoomDialog).bind("click", function(event) {
+				joinRoomDialog.data("roomJid", $(this).attr("roomJid")).dialog("open");
+				findRoomDialog.dialog("close");
+			});
+			__unBlockElement(findRoomDialog);
 		},
 		viewer_drawRoomDetail: function(event, room) {
 			rooms[room.toString()] = new RoomUser({
@@ -1660,7 +1908,6 @@ HICHAT.viewer = (function($, window) {
 		},
 		viewer_drawRoomChatTab: function(event, roomUser, users) {
 			rooms[roomUser.toRoomString()] = roomUser;
-			console.log("rooms : ", roomUser.getRoom());
 			__drawRoomChatTab(roomUser.getRoom(), users);
 		},
 		viewer_deleteRoomChatTab: function(event, room) {
@@ -1709,6 +1956,7 @@ HICHAT.viewer = (function($, window) {
 			createRoomDialog.dialog("close");
 		},
 		viewer_changedGroup: function(event, friend) {
+			friends[friend.getVCard().toString()] = friend;
 			__deleteUserInGroups(friend.getVCard().toString());
 			__addUserInGroups(friend.getVCard().toString(), friend.getGroups());
 			rosterGroupDialog.dialog("close");
@@ -1853,6 +2101,10 @@ HICHAT.viewer = (function($, window) {
 			$(buttons[3]).hide();
 			$(buttons[4]).hide();
 			__unBlockElement(bookmarkDialog);
+		},
+		viewer_changedRosterTag: function(event, user, tag) {
+			friends[user.toString()].setTag(tag);
+			$("div[jid='" + user.getJid() + "_" + user.getDomain() + "'] .u-nick", rosterTb).text(tag);
 		}
 	});
 }(jQuery, window));

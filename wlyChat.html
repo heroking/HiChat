@@ -17,6 +17,7 @@
     </head>
     <body>
         <script type="text/javascript">
+          $("#container").hide();
           $.blockUI({
             message : "正在初始化，请稍后...",
             css: { 
@@ -29,8 +30,9 @@
                 color: '#fff' 
             } 
           });
+
         </script>
-        <div class="g-bd1 f-cb">
+        <div class="g-bd1 f-cb" id="container">
             <div class="g-sd1 s-sd" id="sideBar">
                 <div id="loginDiv" style="padding:10px 10px 10px 10px">
                     <h2>
@@ -40,17 +42,41 @@
                         <fieldset>
                             <table>
                                 <tbody>
-                                    <tr height="40">
+                                    <tr>
                                         <td>
                                             <input name="username" type="text" placeholder="用户名" style="margin-left:10px;width:140px">
                                         </td>
                                     </tr>
-                                    <tr height="40">
+                                    <tr>
                                         <td>
                                             <input name="password" class="" type="password" placeholder="密码" style="margin-left:10px;width:140px">
                                         </td>
-                                    </tr> 
-                                    <tr height="40">
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                          <input style="float:left;margin-left:20px" type="checkbox" name="rememberMe" id="rememberMe"/><label style="float:left;line-height:20px;margin-left:7px" for="rememberMe">记住我</label>
+                                          <span id="loginConfigBtn" style="float:left;margin-left:65px"><img style="width:20px" src="resources/downArrow.png"></span>
+                                        </td>
+                                    </tr>
+                                    <tr class="adSetting">
+                                        <td><input name="host" type="text" placeholder="主机"></td>
+                                    </tr>
+                                    <tr class="adSetting">
+                                        <td><input name="port" type="text" placeholder="端口"></td>
+                                    </tr>
+                                    <tr class="adSetting">
+                                        <td><input name="domain" type="text" placeholder="域"></td>
+                                    </tr>
+                                    <tr class="adSetting">
+                                        <td><input name="groupResources" type="text" placeholder="群聊域"></td>
+                                    </tr>
+                                    <tr class="adSetting">
+                                        <td><input name="resources" type="text" placeholder="客户端名称"></td>
+                                    </tr>
+                                    <tr class="adSetting">
+                                        <td><input name="clientHost" type="text" placeholder="客户端地址"></td>
+                                    </tr>
+                                    <tr>
                                         <td colspan="2" style="text-align:center">
                                             <button type="submit" class="btn btn-success" style="margin-right:20px">登陆</button> <button class="btn btn-info" style="" id="registerBtn">注册</button>
                                         </td>
@@ -436,7 +462,7 @@
                     <div id="groupConfigContextMenu" class="m-ctm">
                       <ul>
                         <li affiliation="admin" style="font-size:120%">房间管理</li>
-                        <li class='u-admin' afiiliation="admin" name="getOutcastList">获取房间黑名单</li>
+                        <li class='u-admin' affiliation="admin" name="getOutcastList">获取房间黑名单</li>
                         <li class='u-admin' affiliation="owner" name="changeConfig">修改房间配置</li>
                         <li class='u-admin' affiliation='owner' name="deleteRoom">删除房间</li>
                         <li style="font-size:120%">个人配置</li>
@@ -468,6 +494,7 @@
                       <ul>
                         <li value="chat">开启聊天窗</li>
                         <li value="info">查看信息</li>
+                        <li value="tag">修改备注</li>
                         <li value="group">添加分组</li>
                         <li value="delete">删除好友</li>
                       </ul>
@@ -672,17 +699,32 @@
                     </div>
                     <!-- /书签对话框 -->
                     <!-- 主页面右键菜单 -->
-                    <!-- <div id="pageContextMenu" class="m-ctm">
+                    <div id="mainPageContextMenu" class="m-ctm">
                       <ul>
+                        <li value="myInfo">我的名片</li>
+                        <li value="closeCur">关闭当前聊天</li>
+                        <li value="closeAll">关闭所有聊天</li>
+                        <!-- <li value="config">设置</li> -->
+                        <li value="about">关于我们</li>
                         <li value="logout">登出</li>
                       </ul>
-                    </div> -->
+                    </div>
                     <!-- /主页面右键菜单 -->
+                    <!-- 关于我们对话框 -->
+                    <div id="aboutDialog" class="dialog">
+                      O(∩_∩)O~
+                    </div>
+                    <!-- /关于我们对话框 -->
+                    <!-- 表情面板 -->
+                    <div id="emotionsPanel" style="width:180px" class="m-ctm">
+                    </div>
+                    <!-- /表情面板 -->
                 </div>
             </div>
         </div>
         <script type="text/javascript" src="jquery-plugin-validation/jquery.validate.min.js"></script>
         <script type="text/javascript" src="jquery-plugin-validation/messages_zh.js"></script>
+        <script type="text/javascript" src="jquery-cookie/jquery.cookie.js"></script>
         <script type="text/javascript" src="tipped/tipped.js"></script>
         <script type="text/javascript" src="bootstrap/js/bootstrap.min.js"></script>
         <script type="text/javascript" src="alertify/alertify.min.js"></script>
@@ -698,6 +740,7 @@
         <script type="text/javascript" src="HiChatViewer.js"></script>
         <script type="text/javascript" src="HiChatMain.js"></script>
         <script type="text/javascript">
+          $("#container").show();
           $.unblockUI();
         </script>
     </body>

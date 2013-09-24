@@ -30,6 +30,7 @@ HICHAT.service = (function($, window) {
 					eventProcessor.triggerEvent("viewer_confirm", ["来自 " + user.getDomain() + " 的 " + user.getJid() + " 请求加您为好友，是否接受？",
 						function() {
 							eventProcessor.triggerEvent("connector_privacyChat_sendSubscribed", [user]);
+							eventProcessor.triggerEvent("connector_privacyChat_sendSubscribe", [user]);
 							eventProcessor.triggerEvent("viewer_drawRoster", [new Friend({
 									vCard: new VCard({
 										jid: user.getJid(),
@@ -37,6 +38,7 @@ HICHAT.service = (function($, window) {
 									}),
 									groups: []
 								})]);
+							eventProcessor.triggerEvent("connector_vCard_getOtherVCard", ["service_roster_getedOtherVCard", user]);
 						},
 						function() {
 							eventProcessor.triggerEvent("connector_privacyChat_sendUnsubscribed", [user]);
@@ -53,9 +55,11 @@ HICHAT.service = (function($, window) {
 							}),
 							groups: []
 						})]);
+					eventProcessor.triggerEvent("connector_vCard_getOtherVCard", ["service_roster_getedOtherVCard", user]);
 				},
 				service_roster_subscribeRejected: function(event, user) {
 					eventProcessor.triggerEvent("viewer_noticeError", ["来自 " + user.getDomain() + " 的 " + user.getJid() + " 拒绝了您的好友请求"]);
+					eventProcessor.triggerEvent("viewer_removeRoster", user);
 				},
 				service_roster_unsubscribeRequest: function(event, user) {
 					eventProcessor.triggerEvent("viewer_removeRoster", [user]);
@@ -77,6 +81,13 @@ HICHAT.service = (function($, window) {
 				},
 				service_roster_changedGroup: function(event, friend) {
 					eventProcessor.triggerEvent("viewer_changedGroup", [friend]);
+				},
+				service_roster_changeRosterTag : function(event, user, groupList, tag){
+					eventProcessor.triggerEvent("connector_privacyChat_changeRosterTag", [user, groupList, tag]);
+				},
+				service_roster_changedRosterTag : function(event, user, tag){
+					eventProcessor.triggerEvent("viewer_changedRosterTag", [user, tag]);
+					eventProcessor.triggerEvent("viewer_noticeSuccess", "修改备注成功");
 				}
 			});
 		}()),
@@ -84,18 +95,18 @@ HICHAT.service = (function($, window) {
 		selfControlModule = (function() {
 			eventProcessor.bindEvent({
 				service_selfControl_logouted: function(event) {
-					eventProcessor.triggerEvent("viewer_logouted", []);
+					eventProcessor.triggerEvent("viewer_logouted");
 				},
 				service_selfControl_logined: function(event, success) {
 					if (success === true) {
-						eventProcessor.triggerEvent("viewer_logined", []);
+						eventProcessor.triggerEvent("viewer_logined");
+						eventProcessor.triggerEvent("connector_vCard_getMyVCard", ["service_selfControl_getedMyVCard"]);
+						eventProcessor.triggerEvent("connector_privacyChat_rosterRequest");
+						eventProcessor.triggerEvent("connector_groupChat_getBookmarks", ["service_groupChat_getedBookmarksAfterLogin"]);
 					} else {
-						eventProcessor.triggerEvent("viewer_logouted", []);
-						eventProcessor.triggerEvent("viewer_noticeError", ["登录失败"]);
+						eventProcessor.triggerEvent("viewer_logouted");
+						eventProcessor.triggerEvent("viewer_noticeError", ["账号或密码错误，请重试"]);
 					}
-					eventProcessor.triggerEvent("connector_vCard_getMyVCard", ["service_selfControl_getedMyVCard"]);
-					eventProcessor.triggerEvent("connector_privacyChat_rosterRequest");
-					eventProcessor.triggerEvent("connector_groupChat_getBookmarks", ["service_groupChat_getedBookmarksAfterLogin"]);
 				},
 				service_selfControl_getedMyVCard: function(event, vCard) {
 					if (typeof vCard === 'undefined') {
@@ -278,26 +289,23 @@ HICHAT.service = (function($, window) {
 					eventProcessor.triggerEvent("connector_groupChat_leaveRoom", [room]);
 				},
 				service_groupChat_groupSendMsg: function(event, message) {
+					console.dir(message);
 					eventProcessor.triggerEvent("connector_groupChat_sendMsg", [message]);
 				},
 				service_groupChat_userJoinRoom: function(event, roomUser) {
 					var users,
 						userJid;
-					try {
-						__setRoomUser(roomUser);
-						if (roomUser.toString() === __getRoomSelf.toString()) {
-							__setRoomSelf(roomUser);
-							users = rooms[roomUser.toRoomString()].curUsers;
-							for (userJid in users) {
-								if (Object.prototype.hasOwnProperty.apply(users, [userJid])) {
-									eventProcessor.triggerEvent("viewer_drawRoomUser", [users[userJid]]);
-								}
+					__setRoomUser(roomUser);
+					if (roomUser.toString() === __getRoomSelf.toString()) {
+						__setRoomSelf(roomUser);
+						users = rooms[roomUser.toRoomString()].curUsers;
+						for (userJid in users) {
+							if (Object.prototype.hasOwnProperty.apply(users, [userJid])) {
+								eventProcessor.triggerEvent("viewer_drawRoomUser", [users[userJid]]);
 							}
-						} else {
-							eventProcessor.triggerEvent("viewer_drawRoomUser", [roomUser]);
 						}
-					} catch (e) {
-						console.dir(e);
+					} else {
+						eventProcessor.triggerEvent("viewer_drawRoomUser", [roomUser]);
 					}
 				},
 				service_groupChat_userLeaveRoom: function(event, roomUser) {
@@ -305,7 +313,7 @@ HICHAT.service = (function($, window) {
 						eventProcessor.triggerEvent("viewer_deleteRoomChatTab", [roomUser.getRoom()]);
 						__deleteRoomInfo(roomUser.getRoom().toString());
 					} else {
-						delete (rooms[roomUser.toRoomString()].curUsers)[roomUser.toString()];
+						delete(rooms[roomUser.toRoomString()].curUsers)[roomUser.toString()];
 						eventProcessor.triggerEvent("viewer_deleteRoomUser", [roomUser]);
 					}
 				},

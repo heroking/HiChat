@@ -83,7 +83,6 @@ HICHAT.connector = (function($, window) {
 					console.log(aPresence.xml());
 				},
 				__handleError = function(aPresence) {
-					console.log("handleError : ", aPresence.xml());
 					var errorCode = $("error", aPresence.getDoc()).attr("code"),
 						from = aPresence.getFrom();
 					switch (errorCode) {
@@ -105,11 +104,24 @@ HICHAT.connector = (function($, window) {
 						$_message = $(aJSJaCPacket.getDoc()),
 						chatState,
 						user;
-					try {
-						if (aJSJaCPacket.getType() === "groupchat") {
-							user = new RoomUser(aJSJaCPacket.getFrom());
-							message = new GroupMessage({
-								groupUser: user,
+					if (aJSJaCPacket.getType() === "groupchat") {
+						user = new RoomUser(aJSJaCPacket.getFrom());
+						message = new GroupMessage({
+							groupUser: user,
+							message: aJSJaCPacket.getBody().htmlEnc()
+						});
+						delay = $("delay", $_message);
+						if (delay.length === 0) {
+							message.setTime(new Date().getTime());
+						} else {
+							message.setTime(new Date(delay.attr("stamp")).getTime());
+						}
+						eventProcessor.triggerEvent("service_groupChat_recieveMsg", [message]);
+					} else {
+						user = new User(aJSJaCPacket.getFrom());
+						if ($("body", $_message).length !== 0) {
+							message = new Message({
+								user: user,
 								message: aJSJaCPacket.getBody().htmlEnc()
 							});
 							delay = $("delay", $_message);
@@ -118,33 +130,15 @@ HICHAT.connector = (function($, window) {
 							} else {
 								message.setTime(new Date(delay.attr("stamp")).getTime());
 							}
-							eventProcessor.triggerEvent("service_groupChat_recieveMsg", [message]);
-						} else {
-							user = new User(aJSJaCPacket.getFrom());
-							if ($("body", $_message).length !== 0) {
-								message = new Message({
-									user: user,
-									message: aJSJaCPacket.getBody().htmlEnc()
-								});
-								delay = $("delay", $_message);
-								if (delay.length === 0) {
-									message.setTime(new Date().getTime());
-								} else {
-									message.setTime(new Date(delay.attr("stamp")).getTime());
-								}
-								eventProcessor.triggerEvent("service_privacyChat_recieveMsg", [message]);
-							}
-							if (true) {
-								//xep - 0085 聊天状态处理，未完成
-							}
+							eventProcessor.triggerEvent("service_privacyChat_recieveMsg", [message]);
 						}
-					} catch (e) {
-						console.dir(e);
+						if (true) {
+							//xep - 0085 聊天状态处理，未完成
+						}
 					}
-
 				},
 				handlePresence: function(aPresence) {
-					console.log("handle Presence : " + aPresence.xml());
+					console.log(aPresence);
 					var type = aPresence.getType() || "available";
 					if ($("x[xmlns='" + NS_MUC_USER + "']", aPresence.getDoc()).length > 0) {
 						__handleGroupChatPresence(aPresence);
@@ -176,7 +170,6 @@ HICHAT.connector = (function($, window) {
 					}
 				},
 				handleError: function(e) {
-					console.log(e.xml());
 					var errorCode = $(e).attr("code");
 					if (Number(errorCode) === 401) {
 						eventProcessor.triggerEvent("service_selfControl_logined", [false]);
@@ -215,6 +208,7 @@ HICHAT.connector = (function($, window) {
 		}()),
 		basicModule = (function() {
 			var __buildConnector = function(username, password, isRegister) {
+				console.log(config);
 				var connArgs = {
 					httpbase: config.httpbase,
 					timerval: config.timerval
@@ -235,7 +229,8 @@ HICHAT.connector = (function($, window) {
 					pass: password,
 					register: isRegister,
 					host: config.host,
-					port: config.port
+					port: config.port,
+					oDbg: console
 				};
 				con.connect(connArgs);
 			};
@@ -258,13 +253,13 @@ HICHAT.connector = (function($, window) {
 		VCardModule = (function() {
 			eventProcessor.bindEvent({
 				connector_vCard_getOtherVCard: function(event, callbackName, user) {
-					console.log(user);
 					var aIQ = new JSJaCIQ(),
-						aVCardNode = aIQ.buildNode("vCard"),
+						aVCardNode = aIQ.buildNode("vCard", {
+							"xmlns": NS_VCARD
+						}),
 						destJid = user.toString();
 					aIQ.setType("get");
 					aIQ.setTo(destJid);
-					aVCardNode.setAttribute("xmlns", NS_VCARD);
 					aIQ.appendNode(aVCardNode);
 					con.sendIQ(aIQ, {
 						error_handler: function() {},
@@ -282,10 +277,12 @@ HICHAT.connector = (function($, window) {
 				},
 				connector_vCard_getMyVCard: function(event, callbackName, CBGetMyVCard) {
 					var aIQ = new JSJaCIQ(),
-						aVCardNode = aIQ.buildNode("vCard");
+						aVCardNode = aIQ.buildNode("vCard", {
+							"xmlns": NS_VCARD
+						});
 					aIQ.setType("get");
-					aVCardNode.setAttribute('xmlns', NS_VCARD);
 					aIQ.appendNode(aVCardNode);
+					console.log(aIQ.xml());
 					con.sendIQ(aIQ, {
 						error_handler: function(e) {
 							console.log(e.xml());
@@ -305,6 +302,7 @@ HICHAT.connector = (function($, window) {
 					var aIQ = new JSJaCIQ();
 					aIQ.setType("set");
 					aIQ.appendNode(XMLHelper.buildVCard(vCard));
+					console.log(aIQ.xml());
 					con.sendIQ(aIQ, {
 						error_handler: function(aJSJaCPacket) {
 							eventProcessor.triggerEvent("service_selfControl_updatedMyVCard", [false]);
@@ -425,8 +423,9 @@ HICHAT.connector = (function($, window) {
 					});
 				},
 				connector_privacyChat_rosterRequest: function(event, CBRosterRequest) {
-					var aIQ = new JSJaCIQ();
-					aIQ.setType("get").setQuery(NS_ROSTER);
+					var aIQ = new JSJaCIQ(),
+						queryNode = aIQ.setQuery(NS_ROSTER);
+					aIQ.setType("get");
 					con.sendIQ(aIQ, {
 						error_handler: function(aJSJaCPacket) {
 							console.log(aJSJaCPacket.xml());
@@ -441,7 +440,8 @@ HICHAT.connector = (function($, window) {
 										vCard: new VCard({
 											jid: wholeJid.substring(0, wholeJid.indexOf("@")),
 											domain: wholeJid.substring(wholeJid.indexOf("@") + 1)
-										})
+										}),
+										tag : that.attr("name")
 									});
 								$("group", that).each(function() {
 									groups.push($(this).text());
@@ -490,6 +490,7 @@ HICHAT.connector = (function($, window) {
 						groups = friend.getGroups(),
 						i;
 					itemNode.setAttribute("jid", friend.getVCard().toString());
+					itemNode.setAttribute("name", friend.getTag());
 					itemNode.setAttribute("subscription", "both");
 					for (i = groups.length; i--;) {
 						itemNode.appendChild(aIQ.buildNode("group", groups[i]));
@@ -506,6 +507,31 @@ HICHAT.connector = (function($, window) {
 							console.log("发生错误", aJSJaCPacket.xml());
 						}
 					});
+				},
+				connector_privacyChat_changeRosterTag: function(event, user, groupList, tag){
+					var aIQ = new JSJaCIQ(),
+						queryNode = aIQ.setType("set").setQuery(NS_ROSTER),
+						itemNode = aIQ.buildNode("item"),
+						groups = groupList,
+						i;
+					itemNode.setAttribute("jid", user.toString());
+					itemNode.setAttribute("name", tag);
+					itemNode.setAttribute("subscription", "both");
+					for (i = groups.length; i--;) {
+						itemNode.appendChild(aIQ.buildNode("group", groups[i]));
+					}
+					queryNode.appendChild(itemNode);
+					con.sendIQ(aIQ, {
+						error_handler: function(aJSJaCPacket) {
+							console.log("发生错误", aJSJaCPacket.xml());
+						},
+						result_handler: function(aJSJaCPacket) {
+							eventProcessor.triggerEvent("service_roster_changedRosterTag", [user, tag]);
+						},
+						default_handler: function(aJSJaCPacket) {
+							console.log("发生错误", aJSJaCPacket.xml());
+						}
+					});
 				}
 			});
 		}()),
@@ -517,7 +543,7 @@ HICHAT.connector = (function($, window) {
 						eventProcessor.triggerEvent("service_noticeError", ["输入的密码不正确！"]);
 						break;
 					case 403:
-						eventProcessor.triggerEvent("service_noticeError", ["您已被该房间禁止进入！"]);
+						eventProcessor.triggerEvent("service_noticeError", ["操作权限不足"]);
 						break;
 					case 404:
 						eventProcessor.triggerEvent("service_noticeError", ["该房间不存在！"]);
@@ -550,15 +576,15 @@ HICHAT.connector = (function($, window) {
 					aMessage.setTo(room.toString()).setType("groupchat");
 					bodyNode.appendChild(document.createTextNode(msgBody));
 					aMessage.appendNode(bodyNode);
-					console.log(aMessage.xml());
 					con.send(aMessage);
 				},
 				connector_groupChat_createRoom: function(event, roomConfig, CBCreateRoom) {
 					var aPresence = new JSJaCPresence(),
-						aX = aPresence.buildNode("x"),
+						aX = aPresence.buildNode("x", {
+							"xmlns": NS_MUC
+						}),
 						roomJID = roomConfig.toString();
 					aPresence.setTo(roomJID + "/" + "creater");
-					aX.setAttribute("xmlns", NS_MUC);
 					aPresence.appendNode(aX);
 					con.send(aPresence, function(aPresence) {
 						var aIQ = new JSJaCIQ();
@@ -570,40 +596,50 @@ HICHAT.connector = (function($, window) {
 								try {
 									var aIQ = new JSJaCIQ().setTo(roomJID).setType("set"),
 										queryNode = aIQ.setQuery(NS_MUC_OWNER),
-										$_xNode = $("<x></x>").attr("xmlns", NS_XDATA).attr("type", "submit"),
-										$_tmpFieldNode,
-										$_tmpValueNode,
+										xNode = aIQ.buildNode("x", {"xmlns" : NS_XDATA}),
+										fieldNode,
+										valueNode,
 										index,
 										allValue,
 										key,
 										i;
-									$_xNode.append("<field var='FORM_TYPE'><value>http://jabber.org/protocol/muc#roomconfig</value></field>");
-
+									xNode.setAttribute("type", "submit");
+									fieldNode = aIQ.buildNode("field");
+									fieldNode.setAttribute("var", "FROM_TYPE");
+									valueNode = aIQ.buildNode("value");
+									valueNode.appendChild(document.createTextNode("http://jabber.org/protocol/muc#roomconfig"));
+									fieldNode.appendChild(valueNode);
+									xNode.appendChild(fieldNode);
 									allValue = roomConfig.getAllValue();
 
 									for (key in allValue) {
 										if (Object.prototype.hasOwnProperty.apply(allValue, [key])) {
-											$_tmpFieldNode = $("<field></field>").attr("var", "muc#roomconfig_" + key);
+											fieldNode = aIQ.buildNode("field");
+											fieldNode.setAttribute("var", "muc#roomconfig_" + key);
 											if (typeof allValue[key] === 'string' || typeof allValue[key] === 'number') {
-												$_tmpValueNode = $("<value></value>").text(allValue[key]);
-												$_tmpFieldNode.append($_tmpValueNode);
+												valueNode = aIQ.buildNode("value");
+												valueNode.appendChild(document.createTextNode(allValue[key]));
+												fieldNode.appendChild(valueNode);
 											} else if (typeof allValue[key] === 'boolean') {
 												if (allValue[key] === true) {
-													$_tmpValueNode = $("<value>1</value>");
+													valueNode = aIQ.buildNode("value");
+													valueNode.appendChild(document.createTextNode("1"));
 												} else {
-													$_tmpValueNode = $("<value>0</value>");
+													valueNode = aIQ.buildNode("value");
+													valueNode.appendChild(document.createTextNode("0"));
 												}
-												$_tmpFieldNode.append($_tmpValueNode);
+												fieldNode.appendChild(valueNode);
 											} else if (typeof allValue[key] === 'object') {
 												for (i = allValue[key].length; i--;) {
-													$_tmpValueNode = $("<value></value>").text(allValue[key][i]);
-													$_tmpFieldNode.append($_tmpValueNode);
+													valueNode = aIQ.buildNode("value");
+													valueNode.appendChild(document.createTextNode(allValue[key]));
+													fieldNode.appendChild(valueNode);
 												}
 											}
-											$_xNode.append($_tmpFieldNode);
+											xNode.appendChild(fieldNode);
 										}
 									}
-									queryNode.appendChild($_xNode.get()[0]);
+									queryNode.appendChild(xNode);
 									con.sendIQ(aIQ, {
 										error_handler: __errorhandler,
 										result_handler: function(aJSJaCPacket) {
@@ -612,7 +648,7 @@ HICHAT.connector = (function($, window) {
 										default_handler: function(aJSJaCPacket) {}
 									});
 								} catch (e) {
-									console.log(e.message);
+									console.log(e);
 								}
 							},
 							default_handler: function(aJSJaCPacket) {}
@@ -710,10 +746,11 @@ HICHAT.connector = (function($, window) {
 							roomUser.setRoom(room);
 
 							var aPresence = new JSJaCPresence(),
-								xNode = aPresence.buildNode("x"),
+								xNode = aPresence.buildNode("x", {
+									"xmlns": NS_MUC
+								}),
 								passwordNode;
 							aPresence.setTo(roomUser.toString());
-							xNode.setAttribute("xmlns", NS_MUC);
 							aPresence.appendNode(xNode);
 							if (typeof password === 'string') {
 								passwordNode = aPresence.buildNode("password");
@@ -822,7 +859,6 @@ HICHAT.connector = (function($, window) {
 					itemNode.setAttribute("affiliation", affiliation);
 					itemNode.setAttribute("jid", roomUser.getJid());
 					queryNode.appendChild(itemNode);
-					console.log(aIQ.xml());
 					con.sendIQ(aIQ, {
 						error_handler: __errorhandler,
 						result_handler: function(aJSJaCPacket) {
@@ -960,20 +996,26 @@ HICHAT.connector = (function($, window) {
 							console.log(aJSJaCPacket.xml());
 						},
 						result_handler: function(aJSJaCPacket) {
-							var $_storage = $("storage", aJSJaCPacket.getDoc()),
+							var storageNode = aJSJaCPacket.getDoc().querySelector("storage"),
 								aIQ = new JSJaCIQ(),
-								queryNode = aIQ.setType("set").setQuery(NS_PRIVATE);
-							if ($("conference[jid='" + bookmark.getRoomJid() + "']", $_storage).length !== 0) {
+								queryNode = aIQ.setType("set").setQuery(NS_PRIVATE),
+								conferenceNode,
+								nickNode;
+							if (storageNode.querySelectorAll("conference[jid='" + bookmark.getRoomJid() + "']").length !== 0) {
 								eventProcessor.triggerEvent("service_groupChat_addedBookmarkFailed", ["该房间的书签已经存在"]);
 								return;
 							}
-							$_storage.append($("conference", XMLHelper.buildAddBookmark({
-								tag: bookmark.getTag(),
-								autojoin: bookmark.isAutojoin(),
-								roomJid: bookmark.getRoomJid(),
-								nickname: bookmark.getNickname()
-							})));
-							queryNode.appendChild($_storage.get()[0]);
+							conferenceNode = aIQ.buildNode("conference");
+							conferenceNode.setAttribute("name", bookmark.getTag());
+							conferenceNode.setAttribute("autojoin", bookmark.isAutojoin());
+							conferenceNode.setAttribute("jid", bookmark.getRoomJid());
+							nickNode = aIQ.buildNode("nick");
+							nickNode.appendChild(document.createTextNode(bookmark.getNickname()));
+							conferenceNode.appendChild(nickNode);
+
+							storageNode.appendChild(conferenceNode);
+							queryNode.appendChild(storageNode);
+							console.log(aIQ.xml());
 							con.sendIQ(aIQ, {
 								error_handler: function(aJSJaCPacket) {
 									console.log(aJSJaCPacket.xml());
@@ -1029,11 +1071,12 @@ HICHAT.connector = (function($, window) {
 							console.log(aJSJaCPacket.xml());
 						},
 						result_handler: function(aJSJaCPacket) {
-							var $_storage = $("storage", aJSJaCPacket.getDoc()),
+							var storageNode = aJSJaCPacket.getDoc().querySelector("storage"),
 								aIQ = new JSJaCIQ(),
 								queryNode = aIQ.setType("set").setQuery(NS_PRIVATE);
-							$("conference[jid='" + roomJid + "']", $_storage).remove();
-							queryNode.appendChild($_storage.get()[0]);
+							storageNode.removeChild(storageNode.querySelector("conference[jid='" + roomJid + "']"));
+							console.log(storageNode.xml);
+							queryNode.appendChild(storageNode);
 							con.sendIQ(aIQ, {
 								error_handler: function(aJSJaCPacket) {
 									console.log(aJSJaCPacket.xml());
@@ -1060,21 +1103,24 @@ HICHAT.connector = (function($, window) {
 							console.log(aJSJaCPacket.xml());
 						},
 						result_handler: function(aJSJaCPacket) {
-							var $_storage = $("storage", aJSJaCPacket.getDoc()),
+							var storageNode = aJSJaCPacket.getDoc().querySelector("storage"),
 								aIQ = new JSJaCIQ(),
 								queryNode = aIQ.setType("set").setQuery(NS_PRIVATE),
 								conferenceNode;
-							conferenceNode = $("conference[jid='" + bookmark.getRoomJid() + "']", $_storage);
+							conferenceNode = storageNode.querySelectorAll("conference[jid='" + bookmark.getRoomJid() + "']");
 							if (conferenceNode.length === 0) {
 								/*不存在*/
 								return;
 							}
-							conferenceNode.attr("jid", bookmark.getRoomJid()).attr("name", bookmark.getTag()).attr("autojoin", bookmark.isAutojoin() ? "true" : "false");
-							if ($("nick", conferenceNode).length === 0) {
-								conferenceNode.append($("<nick></nick>"));
-								$("nick", conferenceNode).text(bookmark.getNickname());
+							conferenceNode = conferenceNode[0];
+							conferenceNode.setAttribute("jid", bookmark.getRoomJid());
+							conferenceNode.setAttribute("name", bookmark.getTag());
+							conferenceNode.setAttribute("autojoin", bookmark.isAutojoin() ? "true" : "false");
+							if (conferenceNode.querySelectorAll("nick").length === 0) {
+								conferenceNode.appendChild(aIQ.buildNode("nick"));
 							}
-							queryNode.appendChild($_storage.get()[0]);
+							conferenceNode.querySelector("nick").replaceChild(document.createTextNode(bookmark.getNickname()), conferenceNode.querySelector("nick").childNodes[0]);
+							queryNode.appendChild(storageNode);
 							con.sendIQ(aIQ, {
 								error_handler: function(aJSJaCPacket) {
 									console.log(aJSJaCPacket.xml());

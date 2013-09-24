@@ -39,6 +39,76 @@ HICHAT.utils.eventProcessor = (function($, window) {
 	};
 }(jQuery, window));
 
+HICHAT.namespace("HICHAT.emotions");
+HICHAT.emotions = {
+	"angry.png": {
+		regexp: ">\\:o",
+		emoStr: ">:o "
+	},
+	"blush.png": {
+		regexp: "\\:-\\[",
+		emoStr: ":-[ "
+	},
+	"confused.png": {
+		regexp: "\\?\\:\\|",
+		emoStr: "?:| "
+	},
+	"cool.png": {
+		regexp: "B-\\)",
+		emoStr: "B-) "
+	},
+	"cry.png": {
+		regexp: "\\:'\\(",
+		emoStr: ":'( "
+	},
+	"devil.png": {
+		regexp: "\\]\\:\\)",
+		emoStr: "]:) "
+	},
+	"grin.png": {
+		regexp: "\\:-D",
+		emoStr: ":-D "
+	},
+	"happy.png": {
+		regexp: "\\:-\\)",
+		emoStr: ":-) "
+	},
+	"laugh.png": {
+		regexp: "\\:\\^0",
+		emoStr: ":^0 "
+	},
+	"love.png": {
+		regexp: "\\:x",
+		emoStr: ":x "
+	},
+	"mischief.png": {
+		regexp: ";\\\\",
+		emoStr: ";\\ "
+	},
+	"plain.png": {
+		regexp: "\\:\\|",
+		emoStr: ":| "
+	},
+	"sad.png": {
+		regexp: "\\:-\\(",
+		emoStr: ":-( "
+	},
+	"shocked.png": {
+		regexp: "\\:0",
+		emoStr: ":0 "
+	},
+	"silly.png": {
+		regexp: "\\:-p",
+		emoStr: ":-p "
+	},
+	"wink.png": {
+		regexp: ";-\\)",
+		emoStr: ";-) "
+	}
+};
+
+
+
 jQuery.fn.extend({
 	slideRightShow: function(callback) {
 		return this.each(function() {
@@ -69,3 +139,13 @@ jQuery.fn.extend({
 		});
 	}
 });
+
+String.prototype.htmlEncode = function() {
+	return document.createElement("a").appendChild(document.createTextNode(this)).parentNode.innerHTML;
+};
+
+String.prototype.htmlDecode = function() {
+	var a = document.createElement("a");
+	a.innerHTML = this;
+	return a.textContent;
+};

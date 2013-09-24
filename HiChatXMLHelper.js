@@ -9,11 +9,11 @@ HICHAT.XMLHelper = (function($, window) {
 		__buildVCard = function(vCard) {
 			var result;
 			if (vCard.hasHeadPortrait()) {
-				result = $(xmlFrame.vCardWithPhoto);
-				$("PHOTO TYPE", result).text(vCard.getHeadPortrait().getType());
-				$("PHOTO BINVAL", result).text(vCard.getHeadPortrait().getBinval());
+				result = (new DOMParser()).parseFromString(xmlFrame.vCardWithPhoto, "text/xml");
+				result.querySelector("PHOTO TYPE").appendChild(result.createTextNode(vCard.getHeadPortrait().getType()));
+				result.querySelector("PHOTO BINVAL").appendChild(result.createTextNode(vCard.getHeadPortrait().getBinval()));
 			} else {
-				result = $(xmlFrame.vCardNoPhoto);
+				result = (new DOMParser()).parseFromString(xmlFrame.vCardNoPhoto, "text/xml");
 			}
 			$("N FAMILY", result).text(vCard.getPersonalInfo().getFamilyName());
 			$("N GIVEN", result).text(vCard.getPersonalInfo().getName());
@@ -60,7 +60,7 @@ HICHAT.XMLHelper = (function($, window) {
 				$("CTRY", that).text(info.getCountry());
 				$("LOCALITY", that).text(info.getCity());
 			});
-			return result.get()[0];
+			return result.childNodes[0];
 		},
 		__parseVCard = function(doc) {
 			var homeInfo,
