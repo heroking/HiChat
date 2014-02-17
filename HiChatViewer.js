@@ -1056,8 +1056,8 @@ HICHAT.viewer = (function($, window) {
 				var that = $(this),
 					file = that.get()[0].files[0],
 					imgNode;
-				if (file.size > 160 * 1024) {
-					__noticeError("头像文件不合法：头像大小不能超过160KB");
+				if (file.size > 50 * 1024) {
+					__noticeError("头像文件不合法：头像大小不能超过50KB");
 					that.val("");
 					return;
 				}

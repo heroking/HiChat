@@ -7,7 +7,7 @@ HICHAT.config = {
 	host : "192.16.0.61",*/
 	/*绥化*/
 	domain : "hi-service.localdomain",
-	host: "221.210.188.221",
+	host: "221.210.83.4",
 	/*本地测试2*/
 	/*domain : "wly2-pc",
 	host: "192.168.0.100",*/
